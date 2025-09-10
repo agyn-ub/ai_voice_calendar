@@ -45,3 +45,4 @@ This introduces **accountability** and **skin in the game** for time management.
    ```bash
    git clone https://github.com/yourusername/ai-voice-calendar.git
    cd ai-voice-calendar
+# ai_voice_calendar
