@@ -115,6 +115,7 @@ firebase-debug.*.log
 # Google Cloud credentials
 service-account-key.json
 google-credentials.json
+client_google.json
 
 # AI/ML model files
 *.model
