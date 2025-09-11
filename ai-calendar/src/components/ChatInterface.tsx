@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
+import GoogleSignInButton from './GoogleSignInButton';
 import { useFlowCurrentUser } from '@onflow/react-sdk';
 
 export interface Message {
@@ -37,7 +38,7 @@ export default function ChatInterface({ className = '' }: ChatInterfaceProps) {
 • "Cancel my 2pm appointment"
 • "Move my dentist appointment to next week"
 
-How can I help you today?`,
+Please connect your Google Calendar above to get started!`,
         timestamp: new Date(),
       },
     ]);
@@ -85,6 +86,19 @@ How can I help you today?`,
 
       const data = await response.json();
       
+      // Check if user needs to authenticate
+      if (data.needsAuth) {
+        const authMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response || 'Please connect your Google Calendar to continue.',
+          timestamp: new Date(),
+          error: true,
+        };
+        setMessages(prev => [...prev, authMessage]);
+        return;
+      }
+      
       // Add assistant response
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -92,6 +106,7 @@ How can I help you today?`,
         content: data.response,
         timestamp: new Date(),
         calendarEvent: data.calendarEvent,
+        error: !data.success,
       };
       
       setMessages(prev => [...prev, assistantMessage]);
@@ -102,7 +117,7 @@ How can I help you today?`,
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: 'Sorry, I encountered an error processing your request. Please make sure you have connected your Google Calendar and try again.',
         timestamp: new Date(),
         error: true,
       };
@@ -115,18 +130,25 @@ How can I help you today?`,
 
   return (
     <div className={`flex flex-col h-full bg-gray-900 rounded-2xl border border-gray-700 ${className}`}>
-      {/* Header */}
+      {/* Header with Google Sign-in */}
       <div className="px-6 py-4 border-b border-gray-700 bg-gray-800 rounded-t-2xl">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-white">AI Calendar Assistant</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Connected: {user?.addr ? `${user.addr.slice(0, 6)}...${user.addr.slice(-4)}` : 'Not connected'}
+              Powered by OpenAI GPT-5 & Google Calendar
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-400">Online</span>
+          <div className="flex items-center space-x-4">
+            <GoogleSignInButton />
+            {user?.addr && (
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Flow Wallet</p>
+                <p className="text-xs font-mono text-green-400">
+                  {user.addr.slice(0, 6)}...{user.addr.slice(-4)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

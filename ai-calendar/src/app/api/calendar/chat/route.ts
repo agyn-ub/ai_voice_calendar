@@ -1,95 +1,106 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAICalendarIntegration } from '@/lib/openai-calendar-integration';
+import { cookies } from 'next/headers';
+import { refreshAccessToken, isTokenExpired } from '@/lib/google-oauth';
 
-// Mock calendar data for demonstration
-const mockEvents = [
-  {
-    id: '1',
-    title: 'Team Standup',
-    startTime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-    endTime: new Date(Date.now() + 90000000).toISOString(),
-    location: 'Conference Room A',
-    description: 'Daily team sync',
-    attendees: ['john@example.com', 'sarah@example.com'],
-    status: 'confirmed' as const,
-  },
-  {
-    id: '2',
-    title: 'Product Review',
-    startTime: new Date(Date.now() + 172800000).toISOString(), // Day after tomorrow
-    endTime: new Date(Date.now() + 176400000).toISOString(),
-    location: 'Virtual - Zoom',
-    description: 'Q4 product roadmap review',
-    attendees: ['team@example.com'],
-    status: 'tentative' as const,
-    meetingLink: 'https://zoom.us/j/123456789',
-  },
-];
+
+async function getOrRefreshToken(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    let accessToken = cookieStore.get('google_access_token')?.value;
+    const refreshToken = cookieStore.get('google_refresh_token')?.value;
+    
+    // If no tokens at all, user needs to authenticate
+    if (!accessToken && !refreshToken) {
+      return null;
+    }
+    
+    // If we have a refresh token but no access token, refresh it
+    if (!accessToken && refreshToken) {
+      const newTokens = await refreshAccessToken(refreshToken);
+      accessToken = newTokens.access_token || null;
+      
+      // Update the access token cookie
+      if (accessToken) {
+        cookieStore.set('google_access_token', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60, // 1 hour
+          path: '/'
+        });
+      }
+    }
+    
+    return accessToken;
+  } catch (error) {
+    console.error('Error getting/refreshing token:', error);
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const { message, walletAddress, isVoice } = await request.json();
-
-    // For demonstration, we'll use mock responses
-    // In production, this would integrate with OpenAI GPT-5-mini and Google Calendar
     
-    const lowerMessage = message.toLowerCase();
-    let response = '';
-    let calendarEvent = null;
-
-    // Simple intent detection for demonstration
-    if (lowerMessage.includes('today') || lowerMessage.includes('schedule') || lowerMessage.includes('calendar')) {
-      // Query calendar
-      response = "Here are your upcoming events:";
-      calendarEvent = mockEvents[0]; // Return first event
-    } else if (lowerMessage.includes('create') || lowerMessage.includes('schedule') || lowerMessage.includes('book')) {
-      // Create event
-      response = "I'll help you schedule that event. Based on your request, I've prepared the following:";
-      calendarEvent = {
-        id: 'new-1',
-        title: 'New Meeting',
-        startTime: new Date(Date.now() + 86400000).toISOString(),
-        endTime: new Date(Date.now() + 90000000).toISOString(),
-        location: 'TBD',
-        description: 'Created from your request',
-        status: 'tentative' as const,
-      };
-    } else if (lowerMessage.includes('cancel') || lowerMessage.includes('delete')) {
-      // Cancel event
-      response = "I've cancelled the requested event. The event has been removed from your calendar.";
-    } else if (lowerMessage.includes('update') || lowerMessage.includes('change') || lowerMessage.includes('move')) {
-      // Update event
-      response = "I've updated the event as requested. The changes have been saved to your calendar.";
-      calendarEvent = {
-        ...mockEvents[0],
-        title: 'Updated: ' + mockEvents[0].title,
-        status: 'confirmed' as const,
-      };
-    } else {
-      // Default response
-      response = `I understand you said: "${message}". I can help you with:
-• Viewing your calendar events
-• Creating new appointments
-• Updating existing events
-• Cancelling meetings
-
-What would you like to do?`;
+    // Get or refresh Google access token
+    const googleAccessToken = await getOrRefreshToken();
+    
+    // Get user info from cookie
+    const cookieStore = await cookies();
+    const userInfoStr = cookieStore.get('google_user')?.value;
+    const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null;
+    
+    // Check if OpenAI API key is configured
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey || openaiApiKey.includes('your_openai_api_key')) {
+      return NextResponse.json({
+        response: 'OpenAI API key not configured. Please add your API key to the environment variables.',
+        error: 'no_openai_key',
+        needsAuth: false
+      });
     }
-
+    
+    // Initialize OpenAI calendar integration
+    const calendarIntegration = createOpenAICalendarIntegration(openaiApiKey);
+    
+    // Check if user has Google Calendar connected
+    if (!googleAccessToken) {
+      return NextResponse.json({
+        response: 'Please connect your Google Calendar to use calendar features.',
+        error: 'no_google_auth',
+        needsAuth: true
+      });
+    }
+    
+    // Process the calendar request with OpenAI
+    const result = await calendarIntegration.processCalendarRequest(
+      message,
+      googleAccessToken,
+      userInfo?.email
+    );
+    
     // Add voice indicator if applicable
+    let finalResponse = result.message;
     if (isVoice) {
-      response = `[Voice command received] ${response}`;
+      finalResponse = `[Voice command] ${finalResponse}`;
     }
-
+    
     return NextResponse.json({
-      response,
-      calendarEvent,
-      tokenId: `cal_${walletAddress}_${Date.now()}`,
+      response: finalResponse,
+      calendarEvent: result.calendarData,
+      tokenId: result.tokenId || `cal_${walletAddress}_${Date.now()}`,
+      permissions: result.permissions,
+      userEmail: userInfo?.email,
+      success: result.success
     });
   } catch (error) {
     console.error('Error processing calendar chat:', error);
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { 
+        error: 'Failed to process request',
+        response: 'Sorry, I encountered an error processing your request. Please try again.'
+      },
       { status: 500 }
     );
   }
