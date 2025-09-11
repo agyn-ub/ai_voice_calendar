@@ -136,7 +136,7 @@ Please connect your Google Calendar above to get started!`,
           <div>
             <h2 className="text-xl font-semibold text-white">AI Calendar Assistant</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Powered by OpenAI GPT-5 & Google Calendar
+              Powered by OpenAI GPT-5-mini & Google Calendar
             </p>
           </div>
           <div className="flex items-center space-x-4">

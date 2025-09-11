@@ -26,7 +26,7 @@ interface MCPTool {
 
 export class OpenAICalendarIntegration {
   private client: OpenAI;
-  private model: string = 'gpt-5'; // Using GPT-5 for Responses API
+  private model: string = 'gpt-5-mini'; // Using GPT-5-mini for Responses API
 
   constructor(apiKey: string) {
     this.client = new OpenAI({
