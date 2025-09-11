@@ -2,80 +2,82 @@
 
 import { useFlowCurrentUser } from '@onflow/react-sdk';
 import Image from 'next/image';
+import ChatInterface from '@/components/ChatInterface';
 
 export default function Home() {
   const { user, authenticate, unauthenticate } = useFlowCurrentUser();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-      <div className="container mx-auto px-4 py-16">
-        <header className="text-center mb-12">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 animate-pulse bg-green-500 blur-xl opacity-50"></div>
-              <Image
-                src="/next.svg"
-                alt="AI Calendar Logo"
-                width={120}
-                height={120}
-                className="relative dark:invert"
-                priority
-              />
-            </div>
-          </div>
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
-            AI Calendar
-          </h1>
-          <p className="text-xl text-gray-300">
-            Powered by Flow Blockchain
-          </p>
-        </header>
-
-        <main className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
-            <h2 className="text-2xl font-semibold mb-6 text-center">
-              Wallet Connection
-            </h2>
-
-            {user?.loggedIn ? (
-              <div className="space-y-6">
-                <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
-                  <p className="text-sm text-gray-400 mb-2">Connected Wallet</p>
-                  <p className="text-lg font-mono text-green-400 break-all">
-                    {user.addr}
-                  </p>
+      <div className="container mx-auto px-4 py-8">
+        {user?.loggedIn ? (
+          // Authenticated view with chat interface
+          <div className="h-[calc(100vh-4rem)]">
+            {/* Header */}
+            <header className="mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Image
+                    src="/next.svg"
+                    alt="AI Calendar Logo"
+                    width={40}
+                    height={40}
+                    className="dark:invert"
+                    priority
+                  />
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                    AI Calendar
+                  </h1>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
-                    <p className="text-sm text-gray-400 mb-1">Network</p>
-                    <p className="text-lg font-semibold">
-                      {process.env.NEXT_PUBLIC_FLOW_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
-                    </p>
-                  </div>
-                  <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
-                    <p className="text-sm text-gray-400 mb-1">Status</p>
-                    <p className="text-lg font-semibold text-green-400">
-                      Connected
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={unauthenticate}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-                >
-                  Disconnect Wallet
-                </button>
-
-                <div className="mt-8 p-4 bg-blue-900/30 rounded-lg border border-blue-700/50">
-                  <p className="text-sm text-blue-300">
-                    🎉 Successfully connected to Flow blockchain! You can now interact with smart contracts and dApps.
-                  </p>
+                <div className="flex items-center space-x-4 bg-gray-900 rounded-lg px-4 py-2 border border-gray-700">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-gray-400">
+                    {user.addr.slice(0, 6)}...{user.addr.slice(-4)}
+                  </span>
+                  <button
+                    onClick={unauthenticate}
+                    className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Disconnect
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-6">
+            </header>
+
+            {/* Chat Interface */}
+            <ChatInterface className="h-[calc(100%-5rem)]" />
+          </div>
+        ) : (
+          // Unauthenticated view - login screen
+          <div>
+            <header className="text-center mb-12 pt-16">
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-pulse bg-green-500 blur-xl opacity-50"></div>
+                  <Image
+                    src="/next.svg"
+                    alt="AI Calendar Logo"
+                    width={120}
+                    height={120}
+                    className="relative dark:invert"
+                    priority
+                  />
+                </div>
+              </div>
+              <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                AI Calendar
+              </h1>
+              <p className="text-xl text-gray-300">
+                Powered by Flow Blockchain
+              </p>
+            </header>
+
+            <main className="max-w-2xl mx-auto">
+              <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
+                <h2 className="text-2xl font-semibold mb-6 text-center">
+                  Wallet Connection
+                </h2>
+
                 <div className="text-center text-gray-400 py-8">
                   <svg
                     className="w-16 h-16 mx-auto mb-4 text-gray-600"
@@ -115,17 +117,17 @@ export default function Home() {
                     <p className="text-sm text-gray-400">Decentralized</p>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          <div className="mt-8 text-center text-gray-500 text-sm">
-            <p>Supported Wallets: Blocto • Lilico • Flow Wallet</p>
-            <p className="mt-2">
-              Network: {process.env.NEXT_PUBLIC_FLOW_NETWORK === 'mainnet' ? 'Flow Mainnet' : 'Flow Testnet'}
-            </p>
+                <div className="mt-8 text-center text-gray-500 text-sm">
+                  <p>Supported Wallets: Blocto • Lilico • Flow Wallet</p>
+                  <p className="mt-2">
+                    Network: {process.env.NEXT_PUBLIC_FLOW_NETWORK === 'mainnet' ? 'Flow Mainnet' : 'Flow Testnet'}
+                  </p>
+                </div>
+              </div>
+            </main>
           </div>
-        </main>
+        )}
       </div>
     </div>
   );
