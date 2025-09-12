@@ -1,12 +1,9 @@
-import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import crypto from 'crypto';
 
-const DB_PATH = process.env.DATABASE_PATH || './calendar.db';
+const DB_FILE = process.env.DATABASE_PATH || './calendar-connections.json';
 const ENCRYPTION_KEY = process.env.JWT_SECRET || 'default-dev-secret-change-in-production';
-
-let db: Database.Database | null = null;
 
 export interface CalendarConnection {
   id?: number;
@@ -17,6 +14,10 @@ export interface CalendarConnection {
   token_expiry?: number;
   created_at?: number;
   updated_at?: number;
+}
+
+interface Database {
+  connections: { [walletAddress: string]: CalendarConnection };
 }
 
 function encrypt(text: string): string {
@@ -40,77 +41,77 @@ function decrypt(text: string): string {
   return decrypted;
 }
 
-export function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    
-    // Initialize database with schema
-    const schemaPath = join(process.cwd(), 'src', 'lib', 'db', 'schema.sql');
-    const schema = readFileSync(schemaPath, 'utf-8');
-    db.exec(schema);
-    
-    // Enable foreign keys and WAL mode for better performance
-    db.pragma('foreign_keys = ON');
-    db.pragma('journal_mode = WAL');
+function loadDatabase(): Database {
+  if (!existsSync(DB_FILE)) {
+    const emptyDb: Database = { connections: {} };
+    saveDatabase(emptyDb);
+    return emptyDb;
   }
-  return db;
+  
+  try {
+    const data = readFileSync(DB_FILE, 'utf-8');
+    return JSON.parse(data) as Database;
+  } catch (error) {
+    console.error('Error loading database:', error);
+    const emptyDb: Database = { connections: {} };
+    return emptyDb;
+  }
+}
+
+function saveDatabase(db: Database): void {
+  try {
+    writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Error saving database:', error);
+  }
 }
 
 export function saveCalendarConnection(connection: CalendarConnection): CalendarConnection {
-  const db = getDb();
+  const db = loadDatabase();
   
   // Encrypt tokens before saving
-  const encryptedConnection = {
+  const encryptedConnection: CalendarConnection = {
     ...connection,
-    access_token: connection.access_token ? encrypt(connection.access_token) : null,
-    refresh_token: connection.refresh_token ? encrypt(connection.refresh_token) : null,
+    access_token: connection.access_token ? encrypt(connection.access_token) : undefined,
+    refresh_token: connection.refresh_token ? encrypt(connection.refresh_token) : undefined,
+    created_at: connection.created_at || Math.floor(Date.now() / 1000),
     updated_at: Math.floor(Date.now() / 1000)
   };
   
-  const stmt = db.prepare(`
-    INSERT INTO calendar_connections (
-      wallet_address, google_email, access_token, refresh_token, token_expiry, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(wallet_address) DO UPDATE SET
-      google_email = excluded.google_email,
-      access_token = excluded.access_token,
-      refresh_token = excluded.refresh_token,
-      token_expiry = excluded.token_expiry,
-      updated_at = excluded.updated_at
-  `);
+  // Store in database
+  db.connections[connection.wallet_address] = encryptedConnection;
   
-  const result = stmt.run(
-    encryptedConnection.wallet_address,
-    encryptedConnection.google_email,
-    encryptedConnection.access_token,
-    encryptedConnection.refresh_token,
-    encryptedConnection.token_expiry,
-    encryptedConnection.updated_at
-  );
+  // Save to file
+  saveDatabase(db);
   
+  // Return decrypted version
   return getCalendarConnection(connection.wallet_address)!;
 }
 
 export function getCalendarConnection(walletAddress: string): CalendarConnection | null {
-  const db = getDb();
-  const stmt = db.prepare('SELECT * FROM calendar_connections WHERE wallet_address = ?');
-  const row = stmt.get(walletAddress) as CalendarConnection | undefined;
+  const db = loadDatabase();
+  const connection = db.connections[walletAddress];
   
-  if (!row) return null;
+  if (!connection) return null;
   
   // Decrypt tokens before returning
   return {
-    ...row,
-    access_token: row.access_token ? decrypt(row.access_token) : undefined,
-    refresh_token: row.refresh_token ? decrypt(row.refresh_token) : undefined
+    ...connection,
+    access_token: connection.access_token ? decrypt(connection.access_token) : undefined,
+    refresh_token: connection.refresh_token ? decrypt(connection.refresh_token) : undefined
   };
 }
 
 export function deleteCalendarConnection(walletAddress: string): boolean {
-  const db = getDb();
-  const stmt = db.prepare('DELETE FROM calendar_connections WHERE wallet_address = ?');
-  const result = stmt.run(walletAddress);
-  return result.changes > 0;
+  const db = loadDatabase();
+  
+  if (!db.connections[walletAddress]) {
+    return false;
+  }
+  
+  delete db.connections[walletAddress];
+  saveDatabase(db);
+  return true;
 }
 
 export function updateTokens(
@@ -119,30 +120,30 @@ export function updateTokens(
   refreshToken?: string,
   tokenExpiry?: number
 ): boolean {
-  const db = getDb();
+  const db = loadDatabase();
+  const connection = db.connections[walletAddress];
   
-  const encryptedAccessToken = encrypt(accessToken);
-  const encryptedRefreshToken = refreshToken ? encrypt(refreshToken) : undefined;
-  const updatedAt = Math.floor(Date.now() / 1000);
+  if (!connection) {
+    return false;
+  }
   
-  let query = 'UPDATE calendar_connections SET access_token = ?, updated_at = ?';
-  const params: any[] = [encryptedAccessToken, updatedAt];
-  
+  // Update tokens with encryption
+  connection.access_token = encrypt(accessToken);
   if (refreshToken) {
-    query += ', refresh_token = ?';
-    params.push(encryptedRefreshToken);
+    connection.refresh_token = encrypt(refreshToken);
   }
-  
   if (tokenExpiry) {
-    query += ', token_expiry = ?';
-    params.push(tokenExpiry);
+    connection.token_expiry = tokenExpiry;
   }
+  connection.updated_at = Math.floor(Date.now() / 1000);
   
-  query += ' WHERE wallet_address = ?';
-  params.push(walletAddress);
-  
-  const stmt = db.prepare(query);
-  const result = stmt.run(...params);
-  
-  return result.changes > 0;
+  // Save to database
+  saveDatabase(db);
+  return true;
+}
+
+// Cleanup function - no longer needed but kept for compatibility
+export function getDb() {
+  // This function is no longer used but kept to avoid breaking imports
+  return null;
 }

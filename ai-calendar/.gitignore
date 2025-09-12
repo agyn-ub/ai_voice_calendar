@@ -42,3 +42,9 @@ next-env.d.ts
 
 context7.txt
 client_google.json
+
+# Database files
+calendar-connections.json
+*.db
+*.sqlite
+*.sqlite3

@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "@onflow/react-sdk": "^0.10.2",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
-    "better-sqlite3": "^12.2.0",
     "googleapis": "^159.0.0",
     "jsonwebtoken": "^9.0.2",
     "next": "15.5.3",
