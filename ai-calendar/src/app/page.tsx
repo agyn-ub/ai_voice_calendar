@@ -2,9 +2,24 @@
 
 import { useFlowCurrentUser } from '@onflow/react-sdk';
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import GoogleCalendarConnect from '@/components/GoogleCalendarConnect';
 
 export default function Home() {
   const { user, authenticate, unauthenticate } = useFlowCurrentUser();
+  const [showCalendarSuccess, setShowCalendarSuccess] = useState(false);
+  
+  useEffect(() => {
+    // Check for calendar connection success
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('calendar_connected') === 'true') {
+      setShowCalendarSuccess(true);
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+      // Hide success message after 3 seconds
+      setTimeout(() => setShowCalendarSuccess(false), 3000);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
@@ -118,6 +133,20 @@ export default function Home() {
               </div>
             )}
           </div>
+          
+          {/* Google Calendar Integration - Only show when wallet is connected */}
+          {user?.loggedIn && (
+            <div className="mt-8">
+              <GoogleCalendarConnect walletAddress={user.addr!} />
+            </div>
+          )}
+          
+          {/* Success notification for calendar connection */}
+          {showCalendarSuccess && (
+            <div className="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg animate-pulse">
+              ✅ Google Calendar connected successfully!
+            </div>
+          )}
 
           <div className="mt-8 text-center text-gray-500 text-sm">
             <p>Supported Wallets: Blocto • Lilico • Flow Wallet</p>
