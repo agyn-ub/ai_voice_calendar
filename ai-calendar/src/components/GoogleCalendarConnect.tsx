@@ -33,6 +33,26 @@ export default function GoogleCalendarConnect({ walletAddress }: GoogleCalendarC
 
   useEffect(() => {
     checkConnectionStatus();
+    
+    // Listen for messages from the OAuth popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data?.type === 'calendar-auth-complete') {
+        setConnecting(false);
+        if (event.data.success) {
+          // Refresh status after successful connection
+          setTimeout(() => {
+            checkConnectionStatus();
+          }, 500);
+        } else {
+          console.error('Calendar connection failed:', event.data.message);
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [walletAddress]);
 
   useEffect(() => {
@@ -61,18 +81,23 @@ export default function GoogleCalendarConnect({ walletAddress }: GoogleCalendarC
       
       if (data.authUrl) {
         // Open OAuth flow in new window
-        const authWindow = window.open(data.authUrl, 'google-auth', 'width=500,height=600');
+        const authWindow = window.open(
+          data.authUrl, 
+          'google-auth', 
+          'width=500,height=700,left=200,top=100'
+        );
         
-        // Check if window closed and refresh status
+        // Fallback: Check if window closed manually
         const checkInterval = setInterval(() => {
           if (authWindow?.closed) {
             clearInterval(checkInterval);
-            setTimeout(() => {
-              checkConnectionStatus();
-              setConnecting(false);
-            }, 1000);
+            setConnecting(false);
+            checkConnectionStatus();
           }
-        }, 500);
+        }, 1000);
+        
+        // Clear interval after 5 minutes to prevent memory leak
+        setTimeout(() => clearInterval(checkInterval), 300000);
       }
     } catch (error) {
       console.error('Error connecting calendar:', error);

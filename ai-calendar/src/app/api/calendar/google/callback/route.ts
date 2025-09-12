@@ -8,6 +8,82 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/calendar/google/callback'
 );
 
+function generateCallbackHTML(success: boolean, message: string = '') {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Connecting Google Calendar...</title>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+          }
+          .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+          }
+          .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .success { color: #4ade80; }
+          .error { color: #f87171; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="spinner"></div>
+          <h2>${success ? 'Successfully Connected!' : 'Connection Failed'}</h2>
+          <p>${success ? 'Your Google Calendar has been connected.' : message}</p>
+          <p>Closing this window...</p>
+        </div>
+        <script>
+          // Send message to parent window
+          if (window.opener) {
+            window.opener.postMessage(
+              { 
+                type: 'calendar-auth-complete', 
+                success: ${success},
+                message: '${message}'
+              }, 
+              window.location.origin
+            );
+          }
+          
+          // Close window after a short delay
+          setTimeout(() => {
+            window.close();
+            // If window.close() doesn't work (some browsers block it)
+            // Show a message to manually close
+            if (!window.closed) {
+              document.body.innerHTML = '<div class="container"><h2>You can now close this window</h2></div>';
+            }
+          }, 2000);
+        </script>
+      </body>
+    </html>
+  `;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
@@ -16,14 +92,22 @@ export async function GET(request: NextRequest) {
   
   // Handle OAuth errors
   if (error) {
-    return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error)}`, request.url)
+    return new NextResponse(
+      generateCallbackHTML(false, `Authorization failed: ${error}`),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      }
     );
   }
   
   if (!code || !state) {
-    return NextResponse.redirect(
-      new URL('/?error=missing_parameters', request.url)
+    return new NextResponse(
+      generateCallbackHTML(false, 'Missing required parameters'),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      }
     );
   }
   
@@ -50,14 +134,22 @@ export async function GET(request: NextRequest) {
       token_expiry: tokenExpiry
     });
     
-    // Redirect back to the app with success
-    return NextResponse.redirect(
-      new URL('/?calendar_connected=true', request.url)
+    // Return success HTML
+    return new NextResponse(
+      generateCallbackHTML(true),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      }
     );
   } catch (error) {
     console.error('Error during OAuth callback:', error);
-    return NextResponse.redirect(
-      new URL('/?error=oauth_failed', request.url)
+    return new NextResponse(
+      generateCallbackHTML(false, 'Failed to connect calendar. Please try again.'),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      }
     );
   }
 }
