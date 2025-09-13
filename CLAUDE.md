@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI Voice Calendar - A Next.js application integrating voice-powered calendar management with Flow blockchain staking mechanics. Users connect Google Calendar and stake FLOW tokens on meetings for accountability.
+AI Voice Calendar - A Next.js application with AI-powered calendar management through natural language, integrated with Flow blockchain for staking mechanics. Users connect Google Calendar, interact via an OpenAI-powered chat assistant, and stake FLOW tokens on meetings for accountability.
 
 ## Development Commands
 
@@ -35,7 +35,7 @@ pnpm lint
 - **Styling**: Tailwind CSS v4
 - **Authentication**: Flow blockchain wallet (via @onflow/react-sdk)
 - **Calendar**: Google Calendar API (googleapis)
-- **AI Integration**: OpenAI API (planned)
+- **AI Integration**: OpenAI API with GPT-4o-mini for tool calling
 - **Database**: JSON file-based storage with encryption (calendar-connections.json)
 
 ### Project Structure
@@ -44,23 +44,34 @@ pnpm lint
 ai-calendar/
 ├── src/
 │   ├── app/                     # Next.js App Router
-│   │   ├── api/calendar/        # Calendar API routes
-│   │   │   ├── google/
-│   │   │   │   ├── connect/     # OAuth flow initiation
-│   │   │   │   ├── callback/    # OAuth callback handler
-│   │   │   │   ├── events/      # Calendar events CRUD
-│   │   │   │   └── disconnect/  # Disconnect calendar
-│   │   │   └── status/          # Connection status check
+│   │   ├── api/
+│   │   │   ├── calendar/        # Calendar API routes
+│   │   │   │   ├── google/
+│   │   │   │   │   ├── connect/     # OAuth flow initiation
+│   │   │   │   │   ├── callback/    # OAuth callback handler
+│   │   │   │   │   ├── events/      # Calendar events CRUD
+│   │   │   │   │   └── disconnect/  # Disconnect calendar
+│   │   │   │   └── status/          # Connection status check
+│   │   │   └── assistant/
+│   │   │       └── calendar/    # AI assistant endpoint for natural language processing
 │   │   ├── layout.tsx           # Root layout with FlowProvider
-│   │   └── page.tsx             # Main page with calendar UI
+│   │   └── page.tsx             # Main page with calendar UI and assistant
 │   ├── components/
 │   │   ├── FlowProvider.tsx     # Flow blockchain configuration wrapper
 │   │   ├── GoogleCalendarConnect.tsx  # Calendar connection component
-│   │   └── ClientOnly.tsx       # Client-side rendering wrapper
+│   │   ├── CalendarAssistant.tsx      # ChatGPT-style AI assistant interface
+│   │   ├── ClientOnly.tsx       # Client-side rendering wrapper
+│   │   └── ui/
+│   │       ├── MessageBubble.tsx      # Chat message display component
+│   │       └── ChatInput.tsx          # Enhanced chat input with multi-line support
+│   ├── types/
+│   │   └── openai.ts            # OpenAI tool definitions and types
 │   └── lib/
 │       ├── db/index.ts          # JSON database with encryption
 │       ├── services/
-│       │   └── googleCalendar.ts # Google Calendar service class
+│       │   ├── googleCalendar.ts      # Google Calendar service class
+│       │   ├── openai.ts              # OpenAI service with tool calling
+│       │   └── calendarAssistant.ts   # Calendar assistant conversation manager
 │       └── flow/config.ts        # Flow blockchain configuration
 ```
 
@@ -83,6 +94,25 @@ ai-calendar/
 - Testnet configuration by default
 - Contract addresses configured for FungibleToken, FlowToken, FUSD
 - FlowProvider wraps entire app for wallet access
+
+#### OpenAI Tool Calling Architecture
+1. **Tool Definitions** (`src/types/openai.ts`): 
+   - Defines 5 calendar tools: get_events, create_event, update_event, delete_event, search_events
+   - Each tool has typed parameters for OpenAI function calling
+
+2. **OpenAI Service** (`src/lib/services/openai.ts`):
+   - Processes natural language with GPT-4o-mini model
+   - Executes tool calls by mapping to GoogleCalendarService methods
+   - Handles tool response formatting and error states
+
+3. **Assistant Service** (`src/lib/services/calendarAssistant.ts`):
+   - Manages conversation context with 30-minute timeout
+   - Maintains message history for contextual responses
+   - Handles conversation cleanup and session management
+
+4. **API Flow**:
+   - User message → `/api/assistant/calendar` → OpenAI with tools → Execute calendar operations → Return formatted response
+   - Supports GET (conversation info), POST (process message), DELETE (clear conversation)
 
 ### Environment Variables Required
 
@@ -110,13 +140,18 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
 ### API Routes Pattern
 
-All calendar API routes follow RESTful patterns:
+Calendar API routes follow RESTful patterns:
 - `GET /api/calendar/status` - Check connection status
 - `GET /api/calendar/google/connect` - Initiate OAuth
 - `GET /api/calendar/google/callback` - Handle OAuth callback
 - `GET /api/calendar/google/events` - Fetch calendar events
-- `POST /api/calendar/google/events` - Create event (planned)
+- `POST /api/calendar/google/events` - Create calendar event
 - `DELETE /api/calendar/google/disconnect` - Remove connection
+
+Assistant API endpoints:
+- `POST /api/assistant/calendar` - Process natural language calendar request
+- `GET /api/assistant/calendar?conversation_id={id}` - Get conversation info
+- `DELETE /api/assistant/calendar?conversation_id={id}` - Clear conversation
 
 ### Security Considerations
 
@@ -131,6 +166,9 @@ All calendar API routes follow RESTful patterns:
 - ✅ Google Calendar OAuth flow
 - ✅ Token management with refresh
 - ✅ Encrypted JSON database
-- ⏳ Voice interaction (OpenAI integration pending)
+- ✅ OpenAI integration with tool calling
+- ✅ Natural language calendar management
+- ✅ ChatGPT-style assistant UI
+- ⏳ Voice interaction (speech-to-text)
 - ⏳ FLOW staking mechanics
 - ⏳ Meeting attendance verification
