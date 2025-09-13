@@ -4,9 +4,15 @@ import { useFlowCurrentUser } from '@onflow/react-sdk';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import GoogleCalendarConnect from '@/components/GoogleCalendarConnect';
+import CalendarAssistant from '@/components/CalendarAssistant';
 
 export default function Home() {
   const { user, authenticate, unauthenticate } = useFlowCurrentUser();
+  const [calendarUpdateTrigger, setCalendarUpdateTrigger] = useState(0);
+
+  const handleCalendarUpdate = () => {
+    setCalendarUpdateTrigger(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
@@ -123,9 +129,19 @@ export default function Home() {
           
           {/* Google Calendar Integration - Only show when wallet is connected */}
           {user?.loggedIn && (
-            <div className="mt-8">
-              <GoogleCalendarConnect walletAddress={user.addr!} />
-            </div>
+            <>
+              <div className="mt-8">
+                <GoogleCalendarConnect walletAddress={user.addr!} key={calendarUpdateTrigger} />
+              </div>
+              
+              {/* Calendar Assistant - AI-powered calendar management */}
+              <div className="mt-8">
+                <CalendarAssistant 
+                  walletAddress={user.addr!} 
+                  onCalendarUpdate={handleCalendarUpdate}
+                />
+              </div>
+            </>
           )}
 
           <div className="mt-8 text-center text-gray-500 text-sm">
