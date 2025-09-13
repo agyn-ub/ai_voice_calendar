@@ -6,7 +6,7 @@ import { AssistantRequest } from '@/types/openai';
 export async function POST(request: NextRequest) {
   try {
     const body: AssistantRequest = await request.json();
-    const { wallet_address, message, conversation_id } = body;
+    const { wallet_address, message, conversation_id, timezone } = body;
     
     // Validate request
     if (!wallet_address || !message) {
@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     const response = await calendarAssistantService.processRequest({
       wallet_address,
       message,
-      conversation_id
+      conversation_id,
+      timezone
     });
     
     return NextResponse.json(response);

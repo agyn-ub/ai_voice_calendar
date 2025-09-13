@@ -20,7 +20,7 @@ export class CalendarAssistantService {
   }
   
   async processRequest(request: AssistantRequest): Promise<AssistantResponse> {
-    const { wallet_address, message, conversation_id } = request;
+    const { wallet_address, message, conversation_id, timezone } = request;
     
     // Get or create conversation context
     const conversationId = conversation_id || this.generateConversationId();
@@ -48,7 +48,8 @@ export class CalendarAssistantService {
       const result = await openAIService.processCalendarRequest(
         message,
         wallet_address,
-        context.messages
+        context.messages,
+        timezone
       );
       
       // Update conversation history

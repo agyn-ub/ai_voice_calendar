@@ -70,6 +70,7 @@ export interface AssistantRequest {
   wallet_address: string;
   message: string;
   conversation_id?: string;
+  timezone?: string;
 }
 
 export interface AssistantResponse {

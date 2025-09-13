@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { AssistantResponse } from '@/types/openai';
 import MessageBubble from './ui/MessageBubble';
 import ChatInput from './ui/ChatInput';
+import { getUserTimezone } from '@/lib/utils/timezone';
 
 interface CalendarAssistantProps {
   walletAddress: string | null;
@@ -22,8 +23,15 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [userTimezone, setUserTimezone] = useState<string>('UTC');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Detect user timezone on mount
+  useEffect(() => {
+    const tz = getUserTimezone();
+    setUserTimezone(tz);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -54,7 +62,8 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
         body: JSON.stringify({
           wallet_address: walletAddress,
           message: userMessage,
-          conversation_id: conversationId
+          conversation_id: conversationId,
+          timezone: userTimezone
         }),
       });
       

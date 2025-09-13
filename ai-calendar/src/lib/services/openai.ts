@@ -2,9 +2,11 @@ import OpenAI from 'openai';
 import { CALENDAR_TOOLS, CalendarEventInput } from '@/types/openai';
 import { googleCalendarService } from './googleCalendar';
 import { calendar_v3 } from 'googleapis';
+import { formatDateTimeWithTimezone, addDurationToDateTime } from '@/lib/utils/timezone';
 
 export class OpenAIService {
   private client: OpenAI;
+  private userTimezone: string = 'UTC';
 
   constructor() {
     if (!process.env.OPENAI_API_KEY) {
@@ -19,8 +21,13 @@ export class OpenAIService {
   async processCalendarRequest(
     message: string,
     walletAddress: string,
-    conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] = []
+    conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] = [],
+    timezone?: string
   ) {
+    // Store timezone for use in tool execution
+    if (timezone) {
+      this.userTimezone = timezone;
+    }
     const systemPrompt = `You are a helpful calendar assistant. You can help users manage their Google Calendar by:
 - Viewing upcoming events
 - Creating new events
@@ -30,6 +37,7 @@ export class OpenAIService {
 
 When users ask about their schedule, use the appropriate calendar tools to help them.
 Parse natural language dates and times accurately. Today's date is ${new Date().toLocaleDateString()}.
+The user's timezone is ${this.userTimezone}.
 When creating events, always ask for confirmation if important details are missing.
 Be concise and helpful in your responses.`;
 
@@ -57,6 +65,7 @@ Be concise and helpful in your responses.`;
 
       if (toolCalls && toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
+          if (!('function' in toolCall)) continue;
           const functionName = toolCall.function.name;
           const args = JSON.parse(toolCall.function.arguments);
 
@@ -149,16 +158,53 @@ Be concise and helpful in your responses.`;
       recurrence
     } = args;
 
+    // Format datetime with proper timezone
+    let formattedStartDateTime: string;
+    let formattedEndDateTime: string;
+    
+    if (isAllDay) {
+      // For all-day events, use date format
+      formattedStartDateTime = startDateTime.split('T')[0];
+      formattedEndDateTime = endDateTime ? endDateTime.split('T')[0] : startDateTime.split('T')[0];
+    } else {
+      // For timed events, ensure RFC3339 format with timezone
+      try {
+        // If startDateTime doesn't have timezone info, add it
+        if (!startDateTime.match(/[+-]\d{2}:\d{2}$/) && !startDateTime.endsWith('Z')) {
+          formattedStartDateTime = formatDateTimeWithTimezone(startDateTime, this.userTimezone);
+        } else {
+          formattedStartDateTime = startDateTime;
+        }
+        
+        // Handle end time
+        if (endDateTime) {
+          if (!endDateTime.match(/[+-]\d{2}:\d{2}$/) && !endDateTime.endsWith('Z')) {
+            formattedEndDateTime = formatDateTimeWithTimezone(endDateTime, this.userTimezone);
+          } else {
+            formattedEndDateTime = endDateTime;
+          }
+        } else {
+          // Default to 1 hour duration if no end time specified
+          formattedEndDateTime = addDurationToDateTime(formattedStartDateTime, 60, this.userTimezone);
+        }
+      } catch (error) {
+        console.error('Error formatting datetime:', error);
+        // Fallback to original values
+        formattedStartDateTime = startDateTime;
+        formattedEndDateTime = endDateTime || startDateTime;
+      }
+    }
+
     const event: CalendarEventInput = {
       summary,
       description,
       location,
       start: isAllDay
-        ? { date: startDateTime.split('T')[0] }
-        : { dateTime: startDateTime },
+        ? { date: formattedStartDateTime }
+        : { dateTime: formattedStartDateTime },
       end: isAllDay
-        ? { date: endDateTime.split('T')[0] }
-        : { dateTime: endDateTime }
+        ? { date: formattedEndDateTime }
+        : { dateTime: formattedEndDateTime }
     };
 
     if (attendeeEmails && attendeeEmails.length > 0) {
@@ -191,11 +237,21 @@ Be concise and helpful in your responses.`;
     if (updateFields.location) event.location = updateFields.location;
 
     if (updateFields.startDateTime) {
-      event.start = { dateTime: updateFields.startDateTime };
+      // Format with timezone if not already formatted
+      let formattedDateTime = updateFields.startDateTime;
+      if (!formattedDateTime.match(/[+-]\d{2}:\d{2}$/) && !formattedDateTime.endsWith('Z')) {
+        formattedDateTime = formatDateTimeWithTimezone(formattedDateTime, this.userTimezone);
+      }
+      event.start = { dateTime: formattedDateTime };
     }
 
     if (updateFields.endDateTime) {
-      event.end = { dateTime: updateFields.endDateTime };
+      // Format with timezone if not already formatted
+      let formattedDateTime = updateFields.endDateTime;
+      if (!formattedDateTime.match(/[+-]\d{2}:\d{2}$/) && !formattedDateTime.endsWith('Z')) {
+        formattedDateTime = formatDateTimeWithTimezone(formattedDateTime, this.userTimezone);
+      }
+      event.end = { dateTime: formattedDateTime };
     }
 
     if (updateFields.attendeeEmails) {
