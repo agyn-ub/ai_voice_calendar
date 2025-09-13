@@ -86,17 +86,27 @@ Be concise and helpful in your responses.`;
       const assistantMessage = response.choices[0].message;
       const toolCalls = assistantMessage.tool_calls;
 
-      const actionsExecuted = [];
+      const actionsExecuted: any[] = [];
+      const toolResponses: any[] = [];
       let events: calendar_v3.Schema$Event[] = [];
 
       if (toolCalls && toolCalls.length > 0) {
+        // Create a messages array for the follow-up call if we have tool calls
+        const messagesWithTools: OpenAI.Chat.ChatCompletionMessageParam[] = [
+          ...messages,
+          assistantMessage as OpenAI.Chat.ChatCompletionMessageParam
+        ];
+        
         for (const toolCall of toolCalls) {
           if (!('function' in toolCall)) continue;
           const functionName = toolCall.function.name;
           const args = JSON.parse(toolCall.function.arguments);
 
+          let toolResult;
+          let toolError = null;
+          
           try {
-            const result = await this.executeToolCall(
+            toolResult = await this.executeToolCall(
               functionName,
               args,
               walletAddress
@@ -105,20 +115,53 @@ Be concise and helpful in your responses.`;
             actionsExecuted.push({
               type: functionName,
               status: 'success',
-              details: result
+              details: toolResult
             });
 
             if (functionName === 'get_calendar_events' || functionName === 'search_calendar_events') {
-              events = result as calendar_v3.Schema$Event[];
+              events = toolResult as calendar_v3.Schema$Event[];
             }
           } catch (error) {
+            toolError = error instanceof Error ? error.message : 'Unknown error';
+            toolResult = { error: toolError };
             actionsExecuted.push({
               type: functionName,
               status: 'error',
-              details: error instanceof Error ? error.message : 'Unknown error'
+              details: toolError
             });
           }
+          
+          // Create tool response message
+          const toolResponse: OpenAI.Chat.ChatCompletionToolMessageParam = {
+            role: 'tool',
+            content: JSON.stringify(toolResult),
+            tool_call_id: toolCall.id
+          };
+          
+          messagesWithTools.push(toolResponse);
+          toolResponses.push({
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(toolResult)
+          });
         }
+        
+        // Make a follow-up call to get the final response after tool execution
+        const finalResponse = await this.client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: messagesWithTools,
+          temperature: 0.7,
+          max_tokens: 1000
+        });
+        
+        const finalMessage = finalResponse.choices[0].message;
+        
+        return {
+          message: finalMessage.content || '',
+          actions_taken: actionsExecuted,
+          events,
+          toolCalls,
+          toolResponses
+        };
       }
 
       return {

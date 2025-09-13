@@ -52,15 +52,35 @@ export class CalendarAssistantService {
         timezone
       );
       
-      // Update conversation history
-      context.messages.push(
-        { role: 'user', content: message },
-        { 
-          role: 'assistant', 
-          content: result.message,
+      // Update conversation history with proper message sequence
+      context.messages.push({ role: 'user', content: message });
+      
+      // If there were tool calls, add them to history with responses
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        // Add the assistant message with tool calls
+        context.messages.push({ 
+          role: 'assistant',
+          content: null,
           tool_calls: result.toolCalls
+        } as OpenAI.Chat.ChatCompletionMessageParam);
+        
+        // Add tool response messages
+        if (result.toolResponses) {
+          for (const toolResponse of result.toolResponses) {
+            context.messages.push({
+              role: 'tool',
+              content: toolResponse.content,
+              tool_call_id: toolResponse.tool_call_id
+            } as OpenAI.Chat.ChatCompletionToolMessageParam);
+          }
         }
-      );
+      }
+      
+      // Add the final assistant message
+      context.messages.push({ 
+        role: 'assistant', 
+        content: result.message
+      });
       
       // Keep conversation history manageable (last 20 messages)
       if (context.messages.length > 20) {
