@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { CALENDAR_TOOLS, CalendarEventInput } from '@/types/openai';
 import { googleCalendarService } from './googleCalendar';
 import { calendar_v3 } from 'googleapis';
-import { formatDateTimeWithTimezone, addDurationToDateTime } from '@/lib/utils/timezone';
+import { formatDateTimeWithTimezone, addDurationToDateTime, assembleDateTime } from '@/lib/utils/timezone';
 
 export class OpenAIService {
   private client: OpenAI;
@@ -38,7 +38,33 @@ export class OpenAIService {
 When users ask about their schedule, use the appropriate calendar tools to help them.
 Parse natural language dates and times accurately. Today's date is ${new Date().toLocaleDateString()}.
 The user's timezone is ${this.userTimezone}.
-When creating events, always ask for confirmation if important details are missing.
+
+CRITICAL TIME PARSING RULES for create_calendar_event:
+When extracting time components, follow these rules EXACTLY:
+
+For 12-hour format (AM/PM):
+- "2:00 PM" or "2 PM" → startHour: 2, startMinute: 0, startPeriod: "PM"
+- "2:30 AM" → startHour: 2, startMinute: 30, startPeriod: "AM"
+- "12:00 PM" (noon) → startHour: 12, startMinute: 0, startPeriod: "PM"
+- "12:00 AM" (midnight) → startHour: 12, startMinute: 0, startPeriod: "AM"
+
+For 24-hour format:
+- "14:00" → startHour: 14, startMinute: 0, startPeriod: "NONE"
+- "02:00" → startHour: 2, startMinute: 0, startPeriod: "NONE"
+- "00:00" → startHour: 0, startMinute: 0, startPeriod: "NONE"
+
+Context-based assumptions:
+- "Meeting at 2" (business context) → assume 2 PM (startHour: 2, startPeriod: "PM")
+- "Call at 9" (morning context) → assume 9 AM (startHour: 9, startPeriod: "AM")
+- "Dinner at 7" → assume 7 PM (startHour: 7, startPeriod: "PM")
+- "Breakfast at 8" → assume 8 AM (startHour: 8, startPeriod: "AM")
+
+Duration defaults:
+- If no duration specified, use durationMinutes: 60
+- "for 1 hour" → durationMinutes: 60
+- "for 30 minutes" → durationMinutes: 30
+- "for 2 hours" → durationMinutes: 120
+
 Be concise and helpful in your responses.`;
 
     try {
@@ -150,48 +176,60 @@ Be concise and helpful in your responses.`;
       summary,
       description,
       location,
-      startDateTime,
-      endDateTime,
+      startDate,
+      startHour,
+      startMinute,
+      startPeriod,
+      durationMinutes = 60,
       attendeeEmails,
       reminderMinutes,
       isAllDay,
       recurrence
     } = args;
 
-    // Format datetime with proper timezone
+    console.log('Creating event with time components:', {
+      startDate,
+      startHour,
+      startMinute,
+      startPeriod,
+      durationMinutes
+    });
+
     let formattedStartDateTime: string;
     let formattedEndDateTime: string;
     
     if (isAllDay) {
       // For all-day events, use date format
-      formattedStartDateTime = startDateTime.split('T')[0];
-      formattedEndDateTime = endDateTime ? endDateTime.split('T')[0] : startDateTime.split('T')[0];
+      formattedStartDateTime = startDate;
+      // Add one day for all-day events
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+      formattedEndDateTime = endDate.toISOString().split('T')[0];
     } else {
-      // For timed events, ensure RFC3339 format with timezone
+      // Use structured components to assemble datetime
       try {
-        // If startDateTime doesn't have timezone info, add it
-        if (!startDateTime.match(/[+-]\d{2}:\d{2}$/) && !startDateTime.endsWith('Z')) {
-          formattedStartDateTime = formatDateTimeWithTimezone(startDateTime, this.userTimezone);
-        } else {
-          formattedStartDateTime = startDateTime;
-        }
+        formattedStartDateTime = assembleDateTime(
+          startDate,
+          startHour,
+          startMinute,
+          startPeriod,
+          this.userTimezone
+        );
         
-        // Handle end time
-        if (endDateTime) {
-          if (!endDateTime.match(/[+-]\d{2}:\d{2}$/) && !endDateTime.endsWith('Z')) {
-            formattedEndDateTime = formatDateTimeWithTimezone(endDateTime, this.userTimezone);
-          } else {
-            formattedEndDateTime = endDateTime;
-          }
-        } else {
-          // Default to 1 hour duration if no end time specified
-          formattedEndDateTime = addDurationToDateTime(formattedStartDateTime, 60, this.userTimezone);
-        }
+        // Calculate end time based on duration
+        formattedEndDateTime = addDurationToDateTime(
+          formattedStartDateTime,
+          durationMinutes,
+          this.userTimezone
+        );
+
+        console.log('Assembled datetime:', {
+          start: formattedStartDateTime,
+          end: formattedEndDateTime
+        });
       } catch (error) {
-        console.error('Error formatting datetime:', error);
-        // Fallback to original values
-        formattedStartDateTime = startDateTime;
-        formattedEndDateTime = endDateTime || startDateTime;
+        console.error('Error assembling datetime:', error);
+        throw new Error('Failed to parse event time. Please check the time format.');
       }
     }
 

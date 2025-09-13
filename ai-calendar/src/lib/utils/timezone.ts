@@ -163,3 +163,46 @@ export function addDurationToDateTime(
   const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
   return formatDateTimeWithTimezone(endDate, timezone);
 }
+
+/**
+ * Assemble date and time components into RFC3339 format with timezone
+ * @param date - Date in YYYY-MM-DD format
+ * @param hour - Hour (1-12 for 12-hour format with AM/PM, 0-23 for 24-hour)
+ * @param minute - Minute (0-59)
+ * @param period - 'AM', 'PM', or 'NONE' for 24-hour format
+ * @param timezone - IANA timezone string
+ * @returns RFC3339 formatted datetime with timezone offset
+ */
+export function assembleDateTime(
+  date: string,
+  hour: number,
+  minute: number,
+  period: 'AM' | 'PM' | 'NONE',
+  timezone: string
+): string {
+  // Convert to 24-hour format
+  let hour24 = hour;
+  
+  if (period !== 'NONE') {
+    // Handle 12-hour format
+    if (period === 'PM' && hour < 12) {
+      hour24 = hour + 12;
+    } else if (period === 'AM' && hour === 12) {
+      hour24 = 0; // Midnight
+    } else {
+      hour24 = hour;
+    }
+  }
+  
+  // Validate hour is in valid range
+  if (hour24 < 0 || hour24 > 23) {
+    console.warn(`Invalid hour ${hour24} after conversion from ${hour} ${period}`);
+    hour24 = Math.min(23, Math.max(0, hour24));
+  }
+  
+  // Create datetime string
+  const dateTimeStr = `${date}T${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+  
+  // Format with timezone
+  return formatDateTimeWithTimezone(new Date(dateTimeStr), timezone);
+}

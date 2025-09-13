@@ -82,6 +82,10 @@ export interface AssistantResponse {
   }>;
   events?: calendar_v3.Schema$Event[];
   conversation_id: string;
+  toolResponses?: Array<{
+    tool_call_id: string;
+    content: string;
+  }>;
 }
 
 export const CALENDAR_TOOLS = [
@@ -118,7 +122,7 @@ export const CALENDAR_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'create_calendar_event',
-      description: 'Create a new calendar event',
+      description: 'Create a new calendar event. Extract time components separately for accurate parsing.',
       parameters: {
         type: 'object',
         properties: {
@@ -134,13 +138,26 @@ export const CALENDAR_TOOLS = [
             type: 'string',
             description: 'Event location'
           },
-          startDateTime: {
+          startDate: {
             type: 'string',
-            description: 'Start date and time in ISO 8601 format'
+            description: 'Start date in YYYY-MM-DD format (e.g., "2024-01-15")'
           },
-          endDateTime: {
+          startHour: {
+            type: 'number',
+            description: 'Start hour (1-12 for 12-hour format, 0-23 for 24-hour format). For "2:00 PM" use 2, for "14:00" use 14'
+          },
+          startMinute: {
+            type: 'number',
+            description: 'Start minute (0-59). For "2:00 PM" use 0, for "2:30 PM" use 30'
+          },
+          startPeriod: {
             type: 'string',
-            description: 'End date and time in ISO 8601 format'
+            enum: ['AM', 'PM', 'NONE'],
+            description: 'Time period: AM, PM, or NONE for 24-hour format. For "2:00 PM" use "PM", for "14:00" use "NONE"'
+          },
+          durationMinutes: {
+            type: 'number',
+            description: 'Duration of the event in minutes (default: 60). For "1 hour" use 60, for "30 minutes" use 30'
           },
           attendeeEmails: {
             type: 'array',
@@ -162,7 +179,7 @@ export const CALENDAR_TOOLS = [
             description: 'Recurrence rule (e.g., "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR")'
           }
         },
-        required: ['summary', 'startDateTime', 'endDateTime']
+        required: ['summary', 'startDate', 'startHour', 'startMinute', 'startPeriod']
       }
     }
   },
