@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { CALENDAR_TOOLS, CalendarEventInput } from '@/types/openai';
 import { googleCalendarService } from './googleCalendar';
+import { googleContactsService } from './googleContacts';
 import { calendar_v3 } from 'googleapis';
 import { formatDateTimeWithTimezone, addDurationToDateTime, assembleDateTime } from '@/lib/utils/timezone';
 
@@ -38,6 +39,22 @@ export class OpenAIService {
 When users ask about their schedule, use the appropriate calendar tools to help them.
 Parse natural language dates and times accurately. Today's date is ${new Date().toLocaleDateString()}.
 The user's timezone is ${this.userTimezone}.
+
+ATTENDEE HANDLING:
+When users mention people to invite to events, you can use either:
+1. Email addresses (e.g., "john@example.com")
+2. Contact names (e.g., "John", "John Smith", "Tom")
+
+For the attendeeEmails parameter, pass EXACTLY what the user provides:
+- If they give an email address, pass the email address
+- If they give a name, pass the name as-is
+- The system will automatically look up contacts by name and resolve them to email addresses
+
+Examples:
+- "Schedule a meeting with Tom" → attendeeEmails: ["Tom"]
+- "Invite Sarah and Mike to lunch" → attendeeEmails: ["Sarah", "Mike"]
+- "Meeting with john@example.com" → attendeeEmails: ["john@example.com"]
+- "Call with Tom Smith and sarah@work.com" → attendeeEmails: ["Tom Smith", "sarah@work.com"]
 
 RESPONSE FORMATTING RULES:
 - When confirming calendar actions, provide ONLY the essential details
@@ -315,7 +332,23 @@ Be concise and helpful in your responses.`;
     };
 
     if (attendeeEmails && attendeeEmails.length > 0) {
-      event.attendees = attendeeEmails.map((email: string) => ({ email }));
+      console.log('[OpenAI] Processing attendees for event creation:', attendeeEmails);
+      
+      // Resolve attendee names to email addresses if needed
+      const { resolved, details } = await googleContactsService.resolveAttendees(
+        walletAddress,
+        attendeeEmails
+      );
+      
+      console.log('[OpenAI] Attendee resolution summary:');
+      details.forEach(detail => console.log(`  ${detail}`));
+      
+      if (resolved.length > 0) {
+        event.attendees = resolved.map((email: string) => ({ email }));
+        console.log(`[OpenAI] Added ${resolved.length} attendees to event`);
+      } else {
+        console.warn('[OpenAI] No attendees could be resolved');
+      }
     }
 
     if (reminderMinutes) {
@@ -362,7 +395,23 @@ Be concise and helpful in your responses.`;
     }
 
     if (updateFields.attendeeEmails) {
-      event.attendees = updateFields.attendeeEmails.map((email: string) => ({ email }));
+      console.log('[OpenAI] Processing attendees for event update:', updateFields.attendeeEmails);
+      
+      // Resolve attendee names to email addresses if needed
+      const { resolved, details } = await googleContactsService.resolveAttendees(
+        walletAddress,
+        updateFields.attendeeEmails
+      );
+      
+      console.log('[OpenAI] Attendee resolution summary for update:');
+      details.forEach(detail => console.log(`  ${detail}`));
+      
+      if (resolved.length > 0) {
+        event.attendees = resolved.map((email: string) => ({ email }));
+        console.log(`[OpenAI] Updated event with ${resolved.length} attendees`);
+      } else {
+        console.warn('[OpenAI] No attendees could be resolved for update');
+      }
     }
 
     return await googleCalendarService.updateCalendarEvent(walletAddress, eventId, event);

@@ -164,7 +164,7 @@ export const CALENDAR_TOOLS = [
             items: {
               type: 'string'
             },
-            description: 'List of attendee email addresses'
+            description: 'List of attendees - can be email addresses (e.g., "john@example.com") or contact names (e.g., "John", "Tom Smith"). The system will automatically resolve names to email addresses from the user\'s contacts.'
           },
           reminderMinutes: {
             type: 'number',
@@ -220,7 +220,7 @@ export const CALENDAR_TOOLS = [
             items: {
               type: 'string'
             },
-            description: 'Updated list of attendee email addresses'
+            description: 'Updated list of attendees - can be email addresses or contact names. The system will automatically resolve names to email addresses.'
           }
         },
         required: ['eventId']

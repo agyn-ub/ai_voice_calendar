@@ -35,6 +35,7 @@ pnpm lint
 - **Styling**: Tailwind CSS v4
 - **Authentication**: Flow blockchain wallet (via @onflow/react-sdk)
 - **Calendar**: Google Calendar API (googleapis)
+- **Contacts**: Google People API for contact resolution
 - **AI Integration**: OpenAI API with GPT-4o-mini for tool calling
 - **Database**: JSON file-based storage with encryption (calendar-connections.json)
 
@@ -60,6 +61,7 @@ ai-calendar/
 │   │   ├── FlowProvider.tsx     # Flow blockchain configuration wrapper
 │   │   ├── GoogleCalendarConnect.tsx  # Calendar connection component
 │   │   ├── CalendarAssistant.tsx      # ChatGPT-style AI assistant interface
+│   │   ├── CalendarView.tsx     # Month/week calendar grid with event display
 │   │   ├── ClientOnly.tsx       # Client-side rendering wrapper
 │   │   └── ui/
 │   │       ├── MessageBubble.tsx      # Chat message display component
@@ -70,8 +72,11 @@ ai-calendar/
 │       ├── db/index.ts          # JSON database with encryption
 │       ├── services/
 │       │   ├── googleCalendar.ts      # Google Calendar service class
+│       │   ├── googleContacts.ts      # Google Contacts/People API service
 │       │   ├── openai.ts              # OpenAI service with tool calling
 │       │   └── calendarAssistant.ts   # Calendar assistant conversation manager
+│       ├── utils/
+│       │   └── timezone.ts      # Timezone handling and date formatting utilities
 │       └── flow/config.ts        # Flow blockchain configuration
 ```
 
@@ -79,9 +84,16 @@ ai-calendar/
 
 #### Google Calendar OAuth Flow
 1. User initiates connection via `/api/calendar/google/connect` with wallet address
-2. OAuth redirect to Google with calendar scopes
+2. OAuth redirect to Google with calendar and contacts scopes
 3. Callback to `/api/calendar/google/callback` stores encrypted tokens
-4. Token refresh handled automatically by `GoogleCalendarService`
+4. Token refresh handled automatically by both `GoogleCalendarService` and `GoogleContactsService`
+
+#### Google Contacts Integration
+- **Contact Search**: Searches user's Google contacts by name using People API
+- **Smart Resolution**: Automatically resolves contact names to email addresses when creating events
+- **Confidence Scoring**: Ranks matches by confidence (exact, high, medium, low)
+- **Mixed Input Support**: Handles both email addresses and contact names in attendee lists
+- **Example**: "Schedule meeting with Tom" automatically finds Tom's email from contacts
 
 #### Database Layer
 - JSON file storage at `calendar-connections.json`
@@ -99,11 +111,15 @@ ai-calendar/
 1. **Tool Definitions** (`src/types/openai.ts`): 
    - Defines 5 calendar tools: get_events, create_event, update_event, delete_event, search_events
    - Each tool has typed parameters for OpenAI function calling
+   - Create event tool uses structured time components (date, hour, minute, period) for accurate parsing
+   - AttendeeEmails parameter accepts both email addresses and contact names
 
 2. **OpenAI Service** (`src/lib/services/openai.ts`):
    - Processes natural language with GPT-4o-mini model
    - Executes tool calls by mapping to GoogleCalendarService methods
-   - Handles tool response formatting and error states
+   - Automatically resolves contact names to emails via GoogleContactsService
+   - Handles timezone-aware datetime formatting
+   - Tool response formatting and error states
 
 3. **Assistant Service** (`src/lib/services/calendarAssistant.ts`):
    - Manages conversation context with 30-minute timeout
@@ -113,6 +129,14 @@ ai-calendar/
 4. **API Flow**:
    - User message → `/api/assistant/calendar` → OpenAI with tools → Execute calendar operations → Return formatted response
    - Supports GET (conversation info), POST (process message), DELETE (clear conversation)
+
+#### Timezone and Date Handling
+The application includes comprehensive timezone support via `src/lib/utils/timezone.ts`:
+- **getUserTimezone()**: Detects browser timezone automatically
+- **formatDateTimeWithTimezone()**: Converts dates to RFC3339 format with timezone offsets
+- **assembleDateTime()**: Builds proper datetime from structured components (handles AM/PM and 24-hour formats)
+- **parseAndFormatDateTime()**: Parses natural language dates ("tomorrow at 3pm", "next Monday")
+- **addDurationToDateTime()**: Calculates end times based on duration
 
 ### Environment Variables Required
 
@@ -153,6 +177,25 @@ Assistant API endpoints:
 - `GET /api/assistant/calendar?conversation_id={id}` - Get conversation info
 - `DELETE /api/assistant/calendar?conversation_id={id}` - Clear conversation
 
+### UI Components
+
+#### CalendarView Component
+A full-featured calendar grid supporting month and week views:
+- Month view with day cells showing up to 3 events
+- Week view with hourly time slots
+- Event click for detailed modal view
+- Navigation controls (previous/next/today)
+- Auto-refreshes when events are added/modified
+- Highlights current day and differentiates current month days
+
+#### Assistant Interface
+ChatGPT-style conversational UI:
+- Message bubbles with user/assistant distinction
+- Multi-line input support with Enter to send
+- Real-time event updates after assistant actions
+- Conversation history maintained for context
+- Automatic scroll to latest messages
+
 ### Security Considerations
 
 - Tokens encrypted at rest using AES-256-CBC
@@ -169,6 +212,7 @@ Assistant API endpoints:
 - ✅ OpenAI integration with tool calling
 - ✅ Natural language calendar management
 - ✅ ChatGPT-style assistant UI
+- ✅ Contact name resolution for event attendees
 - ⏳ Voice interaction (speech-to-text)
 - ⏳ FLOW staking mechanics
 - ⏳ Meeting attendance verification
