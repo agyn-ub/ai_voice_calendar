@@ -127,19 +127,20 @@ export default function Home() {
             )}
           </div>
           
-          {/* Google Calendar Integration - Only show when wallet is connected */}
+          {/* Calendar Assistant and Google Calendar - Only show when wallet is connected */}
           {user?.loggedIn && (
             <>
-              <div className="mt-8">
-                <GoogleCalendarConnect walletAddress={user.addr!} key={calendarUpdateTrigger} />
-              </div>
-              
               {/* Calendar Assistant - AI-powered calendar management */}
               <div className="mt-8">
                 <CalendarAssistant 
                   walletAddress={user.addr!} 
                   onCalendarUpdate={handleCalendarUpdate}
                 />
+              </div>
+              
+              {/* Google Calendar Integration */}
+              <div className="mt-8">
+                <GoogleCalendarConnect walletAddress={user.addr!} key={calendarUpdateTrigger} />
               </div>
             </>
           )}
