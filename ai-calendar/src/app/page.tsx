@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import GoogleCalendarConnect from '@/components/GoogleCalendarConnect';
 import CalendarAssistant from '@/components/CalendarAssistant';
+import CalendarView from '@/components/CalendarView';
 
 export default function Home() {
   const { user, authenticate, unauthenticate } = useFlowCurrentUser();
@@ -121,7 +122,15 @@ export default function Home() {
                 />
               </div>
               
-              {/* Google Calendar Integration - Secondary */}
+              {/* Calendar View - Visual Calendar Grid */}
+              <div>
+                <CalendarView 
+                  walletAddress={user.addr!} 
+                  refreshTrigger={calendarUpdateTrigger}
+                />
+              </div>
+              
+              {/* Google Calendar Integration - Settings */}
               <div>
                 <GoogleCalendarConnect walletAddress={user.addr!} key={calendarUpdateTrigger} />
               </div>

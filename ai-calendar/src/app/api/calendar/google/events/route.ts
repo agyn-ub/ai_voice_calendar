@@ -26,11 +26,13 @@ export async function GET(request: NextRequest) {
     // Get date range from query params (optional)
     const timeMin = searchParams.get('timeMin');
     const timeMax = searchParams.get('timeMax');
+    const maxResults = searchParams.get('maxResults');
     
     const events = await googleCalendarService.getCalendarEvents(
       walletAddress,
       timeMin ? new Date(timeMin) : undefined,
-      timeMax ? new Date(timeMax) : undefined
+      timeMax ? new Date(timeMax) : undefined,
+      maxResults ? parseInt(maxResults) : undefined
     );
     
     return NextResponse.json({ 

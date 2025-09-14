@@ -69,7 +69,7 @@ export class GoogleCalendarService {
     return connection.access_token;
   }
   
-  async getCalendarEvents(walletAddress: string, timeMin?: Date, timeMax?: Date) {
+  async getCalendarEvents(walletAddress: string, timeMin?: Date, timeMax?: Date, maxResults?: number) {
     const accessToken = await this.getValidToken(walletAddress);
     
     if (!accessToken) {
@@ -87,7 +87,7 @@ export class GoogleCalendarService {
         calendarId: 'primary',
         timeMin: timeMin?.toISOString() || new Date().toISOString(),
         timeMax: timeMax?.toISOString(),
-        maxResults: 50,
+        maxResults: maxResults || 50,
         singleEvents: true,
         orderBy: 'startTime'
       });
