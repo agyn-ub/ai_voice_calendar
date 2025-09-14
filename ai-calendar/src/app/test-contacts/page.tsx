@@ -34,6 +34,11 @@ export default function TestContactsPage() {
   const [eventTime, setEventTime] = useState('14:00');
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [eventResult, setEventResult] = useState<any>(null);
+  
+  // List contacts
+  const [myContacts, setMyContacts] = useState<any[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
 
   useEffect(() => {
     checkConnection();
@@ -51,6 +56,32 @@ export default function TestContactsPage() {
       setConnectionStatus(data.connected ? 'connected' : 'not_connected');
     } catch (error) {
       setConnectionStatus('not_connected');
+    }
+  };
+
+  const fetchMyContacts = async () => {
+    if (!addr) return;
+
+    setLoadingContacts(true);
+    setMyContacts([]);
+
+    try {
+      const response = await fetch(
+        `/api/calendar/google/contacts/list?wallet_address=${addr}&page_size=100`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Failed to fetch contacts:', data.error);
+      } else {
+        setMyContacts(data.contacts || []);
+        setShowContacts(true);
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      setMyContacts([]);
+    } finally {
+      setLoadingContacts(false);
     }
   };
 
@@ -170,6 +201,103 @@ export default function TestContactsPage() {
               <p className="text-sm mt-2 text-gray-400">
                 Please connect your Google Calendar first to test contact invitations
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* My Contacts Section */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Your Google Contacts</h2>
+            <button
+              onClick={() => setShowContacts(!showContacts)}
+              className="text-sm text-gray-400 hover:text-gray-300"
+            >
+              {showContacts ? 'Hide' : 'Show'} Contacts
+            </button>
+          </div>
+          
+          <button
+            onClick={fetchMyContacts}
+            disabled={!addr || loadingContacts}
+            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
+          >
+            {loadingContacts ? 'Loading...' : `Load My Contacts (First 100)`}
+          </button>
+
+          {showContacts && myContacts.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-3">
+                Found {myContacts.length} contacts. {myContacts.filter(c => c.primaryEmail).length} have email addresses.
+              </p>
+              <div className="max-h-96 overflow-y-auto">
+                <div className="grid gap-2">
+                  {myContacts.map((contact, index) => (
+                    <div key={index} className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-200">
+                            {contact.name}
+                            {contact.firstName && (
+                              <span className="text-xs text-gray-400 ml-2">
+                                (First: {contact.firstName})
+                              </span>
+                            )}
+                          </p>
+                          {contact.primaryEmail && (
+                            <p className="text-sm text-blue-400 mt-1">{contact.primaryEmail}</p>
+                          )}
+                          {contact.organization && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              {contact.organization}
+                              {contact.jobTitle && ` - ${contact.jobTitle}`}
+                            </p>
+                          )}
+                          {contact.phoneNumbers && contact.phoneNumbers.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              📞 {contact.phoneNumbers[0].value}
+                            </p>
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          {contact.primaryEmail ? (
+                            <span className="text-xs px-2 py-1 bg-green-900/30 text-green-400 rounded">
+                              Can Invite
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-1 bg-gray-600 text-gray-400 rounded">
+                              No Email
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Quick test buttons */}
+                      {contact.primaryEmail && (
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => setSearchName(contact.firstName || contact.name)}
+                            className="text-xs px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded"
+                          >
+                            Test Search: "{contact.firstName || contact.name}"
+                          </button>
+                          <button
+                            onClick={() => setAttendees(contact.firstName || contact.name)}
+                            className="text-xs px-2 py-1 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded"
+                          >
+                            Add to Event Test
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showContacts && myContacts.length === 0 && !loadingContacts && (
+            <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600 rounded-lg">
+              <p className="text-yellow-400">No contacts found. Click "Load My Contacts" to fetch them.</p>
             </div>
           )}
         </div>

@@ -237,6 +237,109 @@ export class GoogleContactsService {
   }
   
   /**
+   * List user's contacts from Google
+   */
+  async listContacts(walletAddress: string, pageSize: number = 20): Promise<any[]> {
+    console.log(`[Contacts] Fetching user's contacts (limit: ${pageSize})`);
+    
+    const accessToken = await this.getValidToken(walletAddress);
+    
+    if (!accessToken) {
+      console.error('[Contacts] No valid access token available');
+      throw new Error('No valid access token available for contacts');
+    }
+    
+    this.oauth2Client.setCredentials({
+      access_token: accessToken
+    });
+    
+    const people = google.people({ version: 'v1', auth: this.oauth2Client });
+    
+    try {
+      // List contacts from the user's "My Contacts" group
+      const response = await people.people.connections.list({
+        resourceName: 'people/me',
+        pageSize: pageSize,
+        personFields: 'names,emailAddresses,phoneNumbers,photos,organizations',
+        sortOrder: 'FIRST_NAME_ASCENDING'
+      });
+      
+      const contacts = [];
+      
+      if (response.data.connections) {
+        console.log(`[Contacts] Found ${response.data.connections.length} contacts`);
+        
+        for (const person of response.data.connections) {
+          const contact: any = {
+            resourceName: person.resourceName,
+            etag: person.etag
+          };
+          
+          // Extract name
+          if (person.names && person.names.length > 0) {
+            contact.name = person.names[0].displayName || 
+                          `${person.names[0].givenName || ''} ${person.names[0].familyName || ''}`.trim() ||
+                          'No Name';
+            contact.firstName = person.names[0].givenName;
+            contact.lastName = person.names[0].familyName;
+          } else {
+            contact.name = 'No Name';
+          }
+          
+          // Extract emails
+          if (person.emailAddresses && person.emailAddresses.length > 0) {
+            contact.emails = person.emailAddresses.map(email => ({
+              value: email.value,
+              type: email.type || 'other',
+              primary: email.metadata?.primary || false
+            }));
+            contact.primaryEmail = person.emailAddresses.find(e => e.metadata?.primary)?.value || 
+                                   person.emailAddresses[0].value;
+          }
+          
+          // Extract phone numbers
+          if (person.phoneNumbers && person.phoneNumbers.length > 0) {
+            contact.phoneNumbers = person.phoneNumbers.map(phone => ({
+              value: phone.value,
+              type: phone.type || 'other'
+            }));
+          }
+          
+          // Extract organization
+          if (person.organizations && person.organizations.length > 0) {
+            contact.organization = person.organizations[0].name;
+            contact.jobTitle = person.organizations[0].title;
+          }
+          
+          // Extract photo
+          if (person.photos && person.photos.length > 0) {
+            contact.photoUrl = person.photos[0].url;
+          }
+          
+          contacts.push(contact);
+        }
+      } else {
+        console.log('[Contacts] No contacts found');
+      }
+      
+      // Sort by name
+      contacts.sort((a, b) => a.name.localeCompare(b.name));
+      
+      console.log(`[Contacts] Returning ${contacts.length} contacts`);
+      return contacts;
+    } catch (error) {
+      console.error('Error listing contacts:', error);
+      
+      // If it's a scope error, provide helpful message
+      if (error instanceof Error && error.message.includes('insufficient')) {
+        throw new Error('Calendar needs to be reconnected with contacts permission. Please disconnect and reconnect your Google Calendar.');
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
    * Check if a string is an email address
    */
   static isEmailAddress(str: string): boolean {
