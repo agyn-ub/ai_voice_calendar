@@ -39,7 +39,26 @@ When users ask about their schedule, use the appropriate calendar tools to help 
 Parse natural language dates and times accurately. Today's date is ${new Date().toLocaleDateString()}.
 The user's timezone is ${this.userTimezone}.
 
-CRITICAL TIME PARSING RULES for create_calendar_event:
+CRITICAL RULES for create_calendar_event:
+
+1. TITLE EXTRACTION (summary field):
+Extract the most descriptive title from the user's message:
+- "Schedule a meeting titled 'Visit Bank'" → summary: "Visit Bank"
+- "Doctor appointment at 3pm" → summary: "Doctor appointment"
+- "Lunch with Sarah tomorrow" → summary: "Lunch with Sarah"
+- "Team standup at 10am" → summary: "Team standup"
+- "Call with client about project" → summary: "Call with client about project"
+- "Dinner at Italian restaurant" → summary: "Dinner at Italian restaurant"
+- "Birthday party for John" → summary: "Birthday party for John"
+- "Dentist appointment" → summary: "Dentist appointment"
+- "Meeting with investors" → summary: "Meeting with investors"
+- "Yoga class" → summary: "Yoga class"
+- "Flight to New York" → summary: "Flight to New York"
+
+Only use "Meeting" as the title when NO other descriptive information is available.
+Always prefer specific, descriptive titles over generic ones.
+
+2. TIME PARSING:
 When extracting time components, follow these rules EXACTLY:
 
 For 12-hour format (AM/PM):
@@ -59,7 +78,7 @@ Context-based assumptions:
 - "Dinner at 7" → assume 7 PM (startHour: 7, startPeriod: "PM")
 - "Breakfast at 8" → assume 8 AM (startHour: 8, startPeriod: "AM")
 
-Duration defaults:
+3. DURATION:
 - If no duration specified, use durationMinutes: 60
 - "for 1 hour" → durationMinutes: 60
 - "for 30 minutes" → durationMinutes: 30

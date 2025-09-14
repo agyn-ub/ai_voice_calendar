@@ -128,7 +128,7 @@ export const CALENDAR_TOOLS = [
         properties: {
           summary: {
             type: 'string',
-            description: 'Event title'
+            description: 'Event title/name. Extract the most descriptive title from the user message (e.g., "Visit Bank", "Doctor appointment", "Lunch with Sarah"). Only use "Meeting" if no specific title is mentioned.'
           },
           description: {
             type: 'string',
