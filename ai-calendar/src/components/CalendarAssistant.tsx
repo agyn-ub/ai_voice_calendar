@@ -162,14 +162,14 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col" style={{ height: '600px' }}>
+    <div className="bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-700 flex flex-col" style={{ minHeight: '70vh', maxHeight: '80vh' }}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 flex justify-between items-center">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white flex items-center gap-2">
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
-          Calendar Assistant
+          AI Calendar Assistant
         </h2>
         {messages.length > 0 && (
           <button
@@ -188,29 +188,29 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gradient-to-b from-gray-50 to-white"
+        className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-gray-900/50"
       >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full animate-fadeIn">
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full mb-4">
+                <svg className="w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">How can I help you today?</h3>
-              <p className="text-sm text-gray-600">Ask me anything about your calendar</p>
+              <h3 className="text-xl font-semibold text-gray-200 mb-2">How can I help you manage your calendar?</h3>
+              <p className="text-sm text-gray-400">I can create, view, update, and delete your events</p>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full max-w-2xl">
               {examplePrompts.map((prompt, index) => (
                 <button
                   key={index}
                   onClick={() => setMessage(prompt.text)}
-                  className="flex items-start gap-3 p-3 text-left bg-white hover:bg-gray-50 border border-gray-200 rounded-xl transition-all hover:shadow-md hover:border-gray-300 group"
+                  className="flex items-start gap-3 p-4 text-left bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl transition-all hover:shadow-lg hover:border-gray-500 group"
                 >
                   <span className="text-2xl group-hover:scale-110 transition-transform">{prompt.icon}</span>
-                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{prompt.text}</span>
+                  <span className="text-sm text-gray-300 group-hover:text-gray-100">{prompt.text}</span>
                 </button>
               ))}
             </div>
@@ -234,14 +234,14 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <div className="bg-gray-100 rounded-2xl px-4 py-3 border border-gray-200">
+            <div className="bg-gray-700 rounded-2xl px-4 py-3 border border-gray-600">
               <div className="flex items-center gap-2">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
-                <span className="text-xs text-gray-500 ml-2">Assistant is thinking...</span>
+                <span className="text-xs text-gray-400 ml-2">Assistant is thinking...</span>
               </div>
             </div>
           </div>
@@ -251,7 +251,7 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
       </div>
       
       {/* Input Area */}
-      <div className="border-t border-gray-200 p-4 bg-white">
+      <div className="border-t border-gray-600 p-4 bg-gray-800">
         <ChatInput
           value={message}
           onChange={setMessage}

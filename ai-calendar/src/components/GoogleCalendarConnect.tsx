@@ -165,10 +165,19 @@ export default function GoogleCalendarConnect({ walletAddress }: GoogleCalendarC
   }
 
   return (
-    <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
-      <h2 className="text-2xl font-semibold mb-6 text-center">
-        Google Calendar Integration
-      </h2>
+    <details className="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+      <summary className="px-6 py-4 cursor-pointer hover:bg-gray-700/50 transition-colors flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Google Calendar {status.connected ? '✓' : 'Setup'}
+        </h2>
+        {status.connected && (
+          <span className="text-sm text-gray-400">{status.email}</span>
+        )}
+      </summary>
+      <div className="p-6 border-t border-gray-700">
       
       {status.connected ? (
         <div className="space-y-6">
@@ -247,6 +256,7 @@ export default function GoogleCalendarConnect({ walletAddress }: GoogleCalendarC
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }

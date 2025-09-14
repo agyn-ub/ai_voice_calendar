@@ -47,7 +47,7 @@ export default function ChatInput({
   const isNearLimit = characterCount > maxLength * 0.9;
 
   return (
-    <div className="relative flex items-end gap-2 p-3 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+    <div className="relative flex items-end gap-2 p-3 bg-gray-700 border border-gray-600 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
@@ -58,7 +58,7 @@ export default function ChatInput({
           placeholder={placeholder}
           maxLength={maxLength}
           rows={rows}
-          className="w-full px-3 py-2 resize-none border-none outline-none text-gray-800 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 resize-none border-none outline-none bg-transparent text-gray-100 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ 
             minHeight: '40px',
             maxHeight: '120px',
@@ -69,7 +69,7 @@ export default function ChatInput({
         {/* Character count */}
         {value.length > 0 && (
           <div className={`absolute right-2 bottom-2 text-xs ${
-            isNearLimit ? 'text-orange-500' : 'text-gray-400'
+            isNearLimit ? 'text-orange-400' : 'text-gray-500'
           }`}>
             {characterCount}/{maxLength}
           </div>
@@ -82,8 +82,8 @@ export default function ChatInput({
         disabled={!value.trim() || disabled}
         className={`flex-shrink-0 p-2 rounded-lg transition-all ${
           value.trim() && !disabled
-            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-sm hover:shadow-md'
-            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 shadow-sm hover:shadow-md'
+            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
         }`}
         title="Send message (Enter)"
       >
