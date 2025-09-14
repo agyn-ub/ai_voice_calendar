@@ -39,6 +39,13 @@ When users ask about their schedule, use the appropriate calendar tools to help 
 Parse natural language dates and times accurately. Today's date is ${new Date().toLocaleDateString()}.
 The user's timezone is ${this.userTimezone}.
 
+RESPONSE FORMATTING RULES:
+- When confirming calendar actions, provide ONLY the essential details
+- Do NOT include Google Calendar links or URLs in responses
+- Do NOT say "You can view it here" or provide any viewing links
+- Simply confirm what was done with the event details
+- Example response: "I've scheduled your event 'Team Meeting' on January 15, 2025, at 2 PM for 1 hour."
+
 CRITICAL RULES for create_calendar_event:
 
 1. TITLE EXTRACTION (summary field):
