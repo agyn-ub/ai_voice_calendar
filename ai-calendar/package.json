@@ -9,8 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@onflow/react-sdk": "^0.10.2",
     "@types/jsonwebtoken": "^9.0.10",
+    "ethers": "^6.15.0",
     "googleapis": "^159.0.0",
     "jsonwebtoken": "^9.0.2",
     "next": "15.5.3",

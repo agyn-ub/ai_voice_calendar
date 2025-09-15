@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useFlowCurrentUser } from '@onflow/react-sdk';
+import { WalletService } from '@/lib/web3/wallet';
 
 interface ContactMatch {
   name: string;
@@ -20,8 +20,20 @@ interface TestResult {
 }
 
 export default function TestContactsPage() {
-  const { user } = useFlowCurrentUser();
-  const addr = user?.addr;
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  
+  // Check if wallet is connected on mount
+  useEffect(() => {
+    const checkWallet = async () => {
+      const account = await WalletService.getAccount();
+      if (account) {
+        setWalletAddress(account);
+      }
+    };
+    checkWallet();
+  }, []);
+  
+  const addr = walletAddress;
   const [searchName, setSearchName] = useState('');
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(false);

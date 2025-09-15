@@ -1,19 +1,70 @@
 'use client';
 
-import { useFlowCurrentUser } from '@onflow/react-sdk';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import GoogleCalendarConnect from '@/components/GoogleCalendarConnect';
 import CalendarAssistant from '@/components/CalendarAssistant';
 import CalendarView from '@/components/CalendarView';
+import { WalletService } from '@/lib/web3/wallet';
 
 export default function Home() {
-  const { user, authenticate, unauthenticate } = useFlowCurrentUser();
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [calendarUpdateTrigger, setCalendarUpdateTrigger] = useState(0);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
 
+  // Check if wallet is already connected on mount
+  useEffect(() => {
+    const checkWallet = async () => {
+      const account = await WalletService.getAccount();
+      if (account) {
+        setWalletAddress(account);
+      }
+    };
+    checkWallet();
+
+    // Set up event listeners
+    const cleanup = WalletService.setupEventListeners(
+      (accounts) => {
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+        } else {
+          setWalletAddress(null);
+        }
+      },
+      (chainId) => {
+        console.log('Chain changed:', chainId);
+      }
+    );
+
+    return cleanup;
+  }, []);
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    try {
+      const account = await WalletService.connect();
+      setWalletAddress(account);
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+      alert('Failed to connect wallet. Please make sure MetaMask is installed.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    WalletService.disconnect();
+    setWalletAddress(null);
+    setShowWalletDetails(false);
+  };
+
   const handleCalendarUpdate = () => {
     setCalendarUpdateTrigger(prev => prev + 1);
+  };
+
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   return (
@@ -39,7 +90,7 @@ export default function Home() {
 
             {/* Wallet Status */}
             <div className="flex items-center gap-3">
-              {user?.loggedIn ? (
+              {walletAddress ? (
                 <>
                   <button
                     onClick={() => setShowWalletDetails(!showWalletDetails)}
@@ -47,7 +98,7 @@ export default function Home() {
                   >
                     <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                     <span className="text-sm font-mono text-gray-300">
-                      {user.addr?.slice(0, 6)}...{user.addr?.slice(-4)}
+                      {formatAddress(walletAddress)}
                     </span>
                     <svg 
                       className={`w-4 h-4 text-gray-400 transition-transform ${
@@ -61,7 +112,7 @@ export default function Home() {
                     </svg>
                   </button>
                   <button
-                    onClick={unauthenticate}
+                    onClick={handleDisconnect}
                     className="px-3 py-1.5 text-sm bg-red-600/20 text-red-400 rounded-lg border border-red-600/30 hover:bg-red-600/30 transition-colors"
                   >
                     Disconnect
@@ -69,10 +120,11 @@ export default function Home() {
                 </>
               ) : (
                 <button
-                  onClick={authenticate}
-                  className="px-4 py-1.5 text-sm bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all"
+                  onClick={handleConnect}
+                  disabled={isConnecting}
+                  className="px-4 py-1.5 text-sm bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
                 >
-                  Connect Wallet
+                  {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
                 </button>
               )}
             </div>
@@ -81,29 +133,28 @@ export default function Home() {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-
         <main className="max-w-4xl mx-auto">
           {/* Collapsible Wallet Details */}
-          {showWalletDetails && user?.loggedIn && (
+          {showWalletDetails && walletAddress && (
             <div className="mb-6 bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-700 animate-in slide-in-from-top-2">
               <div className="space-y-4">
                 <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
                   <p className="text-xs text-gray-400 mb-1">Full Wallet Address</p>
                   <p className="text-sm font-mono text-green-400 break-all">
-                    {user.addr}
+                    {walletAddress}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                     <p className="text-xs text-gray-400 mb-1">Network</p>
                     <p className="text-sm font-semibold">
-                      {process.env.NEXT_PUBLIC_FLOW_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                      Flow EVM Testnet
                     </p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Status</p>
+                    <p className="text-xs text-gray-400 mb-1">Chain ID</p>
                     <p className="text-sm font-semibold text-green-400">
-                      Connected
+                      545
                     </p>
                   </div>
                 </div>
@@ -112,12 +163,12 @@ export default function Home() {
           )}
           
           {/* Main Content Area */}
-          {user?.loggedIn ? (
+          {walletAddress ? (
             <div className="space-y-6">
               {/* Calendar Assistant - Primary Focus */}
               <div className="min-h-[600px]">
                 <CalendarAssistant 
-                  walletAddress={user.addr!} 
+                  walletAddress={walletAddress} 
                   onCalendarUpdate={handleCalendarUpdate}
                 />
               </div>
@@ -125,14 +176,14 @@ export default function Home() {
               {/* Calendar View - Visual Calendar Grid */}
               <div>
                 <CalendarView 
-                  walletAddress={user.addr!} 
+                  walletAddress={walletAddress} 
                   refreshTrigger={calendarUpdateTrigger}
                 />
               </div>
               
               {/* Google Calendar Integration - Settings */}
               <div>
-                <GoogleCalendarConnect walletAddress={user.addr!} key={calendarUpdateTrigger} />
+                <GoogleCalendarConnect walletAddress={walletAddress} key={calendarUpdateTrigger} />
               </div>
             </div>
           ) : (
@@ -154,38 +205,25 @@ export default function Home() {
                     />
                   </svg>
                   <div>
-                    <p className="text-lg font-semibold mb-2">Connect Your Wallet</p>
-                    <p className="text-sm text-gray-400">Connect your Flow wallet to start using AI Calendar</p>
+                    <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
+                    <p className="text-gray-400">
+                      Connect your MetaMask wallet to access your AI Calendar
+                    </p>
                   </div>
                   <button
-                    onClick={authenticate}
-                    className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
+                    onClick={handleConnect}
+                    disabled={isConnecting}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
                   >
-                    Connect Flow Wallet
+                    {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
                   </button>
-                  <div className="grid grid-cols-3 gap-3 pt-4">
-                    <div className="text-center">
-                      <div className="text-xl mb-1">🔐</div>
-                      <p className="text-xs text-gray-400">Secure</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl mb-1">⚡</div>
-                      <p className="text-xs text-gray-400">Fast</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl mb-1">🌐</div>
-                      <p className="text-xs text-gray-400">Decentralized</p>
-                    </div>
-                  </div>
+                  <p className="text-xs text-gray-500">
+                    Make sure you have MetaMask installed and are connected to Flow EVM Testnet
+                  </p>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Footer Info */}
-          <div className="mt-12 text-center text-gray-500 text-xs">
-            <p>Supported: Blocto • Lilico • Flow Wallet | {process.env.NEXT_PUBLIC_FLOW_NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}</p>
-          </div>
         </main>
       </div>
     </div>
