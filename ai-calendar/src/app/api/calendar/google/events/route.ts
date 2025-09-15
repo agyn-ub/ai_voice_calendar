@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleCalendarService } from '@/lib/services/googleCalendar';
 import { getCalendarConnection } from '@/lib/db';
+import { StakingService } from '@/lib/services/stakingService';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -69,10 +70,72 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Create the calendar event first
     const createdEvent = await googleCalendarService.createCalendarEvent(
       wallet_address,
       event
     );
+    
+    // If staking is required, create a staked meeting
+    if (event.stakeRequired && event.stakeRequired > 0 && createdEvent.id) {
+      try {
+        // Generate a unique meeting ID based on the calendar event ID
+        const meetingId = `meeting-${createdEvent.id}`;
+        
+        // Parse event times
+        const startTime = createdEvent.start?.dateTime ? 
+          new Date(createdEvent.start.dateTime) : 
+          new Date(createdEvent.start?.date || '');
+        const endTime = createdEvent.end?.dateTime ? 
+          new Date(createdEvent.end.dateTime) : 
+          new Date(createdEvent.end?.date || '');
+        
+        // Create staked meeting on blockchain
+        await StakingService.createStakedMeeting(
+          meetingId,
+          createdEvent.id,
+          wallet_address,
+          event.stakeRequired,
+          startTime,
+          endTime
+        );
+        
+        // Update event description to include staking info
+        const stakingInfo = `\n\n💰 Staking Required: ${event.stakeRequired} FLOW\n` +
+          `Meeting ID: ${meetingId}\n` +
+          `Stake by: ${new Date(startTime.getTime() - 60 * 60 * 1000).toLocaleString()}`;
+        
+        const updatedDescription = (createdEvent.description || '') + stakingInfo;
+        
+        // Update the event with staking information
+        await googleCalendarService.updateCalendarEvent(
+          wallet_address,
+          createdEvent.id,
+          {
+            description: updatedDescription
+          }
+        );
+        
+        return NextResponse.json({ 
+          success: true, 
+          event: { ...createdEvent, description: updatedDescription },
+          staking: {
+            enabled: true,
+            meetingId,
+            requiredStake: event.stakeRequired,
+            stakingDeadline: new Date(startTime.getTime() - 60 * 60 * 1000).toISOString()
+          }
+        });
+      } catch (stakingError) {
+        console.error('Error creating staked meeting:', stakingError);
+        // Event was created but staking failed - still return success but with warning
+        return NextResponse.json({ 
+          success: true, 
+          event: createdEvent,
+          warning: 'Event created but staking setup failed'
+        });
+      }
+    }
     
     return NextResponse.json({ success: true, event: createdEvent });
   } catch (error) {

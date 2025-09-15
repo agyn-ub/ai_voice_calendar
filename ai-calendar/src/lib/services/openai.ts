@@ -270,7 +270,8 @@ Be concise and helpful in your responses.`;
       attendeeEmails,
       reminderMinutes,
       isAllDay,
-      recurrence
+      recurrence,
+      stakeRequired
     } = args;
 
     console.log('Creating event with time components:', {
@@ -362,6 +363,10 @@ Be concise and helpful in your responses.`;
 
     if (recurrence) {
       event.recurrence = [recurrence];
+    }
+
+    if (stakeRequired && stakeRequired > 0) {
+      event.stakeRequired = stakeRequired;
     }
 
     return await googleCalendarService.createCalendarEvent(walletAddress, event);

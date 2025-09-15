@@ -16,8 +16,29 @@ export interface CalendarConnection {
   updated_at?: number;
 }
 
+export interface MeetingStake {
+  meetingId: string;
+  eventId: string;
+  organizer: string;
+  requiredStake: number;
+  startTime: string;
+  endTime: string;
+  attendanceCode?: string;
+  codeGeneratedAt?: string;
+  isSettled: boolean;
+  stakes: {
+    walletAddress: string;
+    amount: number;
+    stakedAt: string;
+    hasCheckedIn: boolean;
+    checkInTime?: string;
+    isRefunded: boolean;
+  }[];
+}
+
 interface Database {
   connections: { [walletAddress: string]: CalendarConnection };
+  meetingStakes?: { [meetingId: string]: MeetingStake };
 }
 
 function encrypt(text: string): string {
@@ -43,17 +64,22 @@ function decrypt(text: string): string {
 
 function loadDatabase(): Database {
   if (!existsSync(DB_FILE)) {
-    const emptyDb: Database = { connections: {} };
+    const emptyDb: Database = { connections: {}, meetingStakes: {} };
     saveDatabase(emptyDb);
     return emptyDb;
   }
   
   try {
     const data = readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(data) as Database;
+    const db = JSON.parse(data) as Database;
+    // Ensure meetingStakes exists
+    if (!db.meetingStakes) {
+      db.meetingStakes = {};
+    }
+    return db;
   } catch (error) {
     console.error('Error loading database:', error);
-    const emptyDb: Database = { connections: {} };
+    const emptyDb: Database = { connections: {}, meetingStakes: {} };
     return emptyDb;
   }
 }
@@ -141,6 +167,12 @@ export function updateTokens(
   saveDatabase(db);
   return true;
 }
+
+// Export database utilities for staking
+export const db = {
+  read: loadDatabase,
+  write: saveDatabase
+};
 
 // Cleanup function - no longer needed but kept for compatibility
 export function getDb() {

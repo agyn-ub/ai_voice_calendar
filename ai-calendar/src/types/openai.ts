@@ -33,6 +33,7 @@ export interface CalendarEventInput {
   };
   recurrence?: string[];
   colorId?: string;
+  stakeRequired?: number; // Optional FLOW stake requirement
 }
 
 export interface GetEventsParams {
@@ -177,6 +178,10 @@ export const CALENDAR_TOOLS = [
           recurrence: {
             type: 'string',
             description: 'Recurrence rule (e.g., "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR")'
+          },
+          stakeRequired: {
+            type: 'number',
+            description: 'Optional: Amount of FLOW tokens required to stake for attending this meeting. Attendees must stake this amount and will get it back if they attend, or lose it if they miss.'
           }
         },
         required: ['summary', 'startDate', 'startHour', 'startMinute', 'startPeriod']
