@@ -1,66 +1,81 @@
-## Foundry
+# MeetingStake Smart Contract
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A Solidity smart contract for staking FLOW tokens on meeting attendance, deployed on Flow EVM.
 
-Foundry consists of:
+## Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+This contract allows meeting organizers to require attendees to stake FLOW tokens. Attendees who join the meeting and submit the attendance code get their stake refunded. Those who miss the meeting forfeit their stake to the organizer.
 
-## Documentation
+## Setup
 
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+1. Copy `.env.example` to `.env` and add your private key:
+```bash
+cp .env.example .env
 ```
 
-### Test
-
-```shell
-$ forge test
+2. Install dependencies:
+```bash
+forge install
 ```
 
-### Format
-
-```shell
-$ forge fmt
+3. Compile contracts:
+```bash
+forge build
 ```
 
-### Gas Snapshots
+## Deployment
 
-```shell
-$ forge snapshot
+### Deploy to Flow EVM Testnet
+
+```bash
+forge script script/Deploy.s.sol --rpc-url flow_testnet --broadcast
 ```
 
-### Anvil
-
-```shell
-$ anvil
+Or with explicit RPC:
+```bash
+forge script script/Deploy.s.sol --rpc-url https://testnet.evm.nodes.onflow.org --broadcast
 ```
 
-### Deploy
+## Network Information
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+- **Network**: Flow EVM Testnet
+- **Chain ID**: 545
+- **RPC URL**: https://testnet.evm.nodes.onflow.org
+- **Explorer**: https://evm-testnet.flowscan.io
+- **Faucet**: https://testnet-faucet.onflow.org/
+
+## Getting Test FLOW (EVM)
+
+1. Go to [Flow Testnet Faucet](https://testnet-faucet.onflow.org/)
+2. Enter your MetaMask address (0x...)
+3. Request FLOW tokens for testing
+
+## Contract Functions
+
+### For Organizers
+- `createMeeting()` - Create a meeting with stake requirement
+- `generateAttendanceCode()` - Generate code during meeting
+- `settleMeeting()` - Distribute stakes after meeting
+
+### For Attendees
+- `stake()` - Stake FLOW to commit to attending
+- `submitAttendanceCode()` - Submit code to prove attendance
+
+## Testing
+
+Run tests:
+```bash
+forge test
 ```
 
-### Cast
-
-```shell
-$ cast <subcommand>
+Run tests with gas reporting:
+```bash
+forge test --gas-report
 ```
 
-### Help
+## Contract Addresses
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+After deployment, save the contract address in the frontend `.env`:
+```
+NEXT_PUBLIC_MEETING_STAKE_ADDRESS=0x...
 ```
