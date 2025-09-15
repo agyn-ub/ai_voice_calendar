@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/contacts.readonly'
+    'https://www.googleapis.com/auth/contacts' // Full access to create/update contacts
   ];
   
   const authUrl = oauth2Client.generateAuthUrl({

@@ -340,6 +340,75 @@ export class GoogleContactsService {
   }
   
   /**
+   * Create a new contact in Google Contacts
+   */
+  async createContact(
+    walletAddress: string,
+    name: string,
+    email: string,
+    phone?: string
+  ): Promise<any> {
+    console.log(`[Contacts] Creating contact: ${name} (${email})`);
+    
+    const accessToken = await this.getValidToken(walletAddress);
+    
+    if (!accessToken) {
+      console.error('[Contacts] No valid access token available');
+      throw new Error('No valid access token available for contacts');
+    }
+    
+    this.oauth2Client.setCredentials({
+      access_token: accessToken
+    });
+    
+    const people = google.people({ version: 'v1', auth: this.oauth2Client });
+    
+    try {
+      const contactData: any = {
+        names: [{
+          givenName: name.split(' ')[0],
+          familyName: name.split(' ').slice(1).join(' ') || '',
+          displayName: name
+        }],
+        emailAddresses: [{
+          value: email,
+          type: 'home'
+        }]
+      };
+      
+      if (phone) {
+        contactData.phoneNumbers = [{
+          value: phone,
+          type: 'mobile'
+        }];
+      }
+      
+      const response = await people.people.createContact({
+        requestBody: contactData
+      });
+      
+      console.log(`[Contacts] Successfully created contact: ${name}`);
+      
+      return {
+        success: true,
+        resourceName: response.data.resourceName,
+        name: name,
+        email: email,
+        details: response.data
+      };
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      
+      // If it's a scope error, provide helpful message
+      if (error instanceof Error && error.message.includes('insufficient')) {
+        throw new Error('Calendar needs to be reconnected with contacts write permission. Please disconnect and reconnect your Google Calendar.');
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
    * Check if a string is an email address
    */
   static isEmailAddress(str: string): boolean {

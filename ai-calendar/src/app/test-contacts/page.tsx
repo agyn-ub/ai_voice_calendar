@@ -39,6 +39,13 @@ export default function TestContactsPage() {
   const [myContacts, setMyContacts] = useState<any[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
+  
+  // Create contact
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [creatingContact, setCreatingContact] = useState(false);
+  const [createContactResult, setCreateContactResult] = useState<any>(null);
 
   useEffect(() => {
     checkConnection();
@@ -56,6 +63,48 @@ export default function TestContactsPage() {
       setConnectionStatus(data.connected ? 'connected' : 'not_connected');
     } catch (error) {
       setConnectionStatus('not_connected');
+    }
+  };
+
+  const createContact = async () => {
+    if (!addr || !newContactName || !newContactEmail) return;
+
+    setCreatingContact(true);
+    setCreateContactResult(null);
+
+    try {
+      const response = await fetch('/api/calendar/google/contacts/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wallet_address: addr,
+          name: newContactName,
+          email: newContactEmail,
+          phone: newContactPhone || undefined
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCreateContactResult({ success: false, error: data.error, needsReconnect: data.needsReconnect });
+      } else {
+        setCreateContactResult({ success: true, ...data });
+        // Clear form on success
+        setNewContactName('');
+        setNewContactEmail('');
+        setNewContactPhone('');
+        // Optionally refresh contacts list
+        if (showContacts) {
+          fetchMyContacts();
+        }
+      }
+    } catch (error) {
+      setCreateContactResult({ success: false, error: 'Failed to create contact' });
+    } finally {
+      setCreatingContact(false);
     }
   };
 
@@ -298,6 +347,94 @@ export default function TestContactsPage() {
           {showContacts && myContacts.length === 0 && !loadingContacts && (
             <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600 rounded-lg">
               <p className="text-yellow-400">No contacts found. Click "Load My Contacts" to fetch them.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Create Real Test Contact */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">Create Real Test Contact</h2>
+          <p className="text-gray-400 mb-4">
+            Create a contact with your second Gmail account to test real invitations
+          </p>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Contact Name
+              </label>
+              <input
+                type="text"
+                value={newContactName}
+                onChange={(e) => setNewContactName(e.target.value)}
+                placeholder="e.g., John Test or Test User"
+                className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Email Address (Your Second Gmail)
+              </label>
+              <input
+                type="email"
+                value={newContactEmail}
+                onChange={(e) => setNewContactEmail(e.target.value)}
+                placeholder="your.second.email@gmail.com"
+                className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Phone Number (Optional)
+              </label>
+              <input
+                type="text"
+                value={newContactPhone}
+                onChange={(e) => setNewContactPhone(e.target.value)}
+                placeholder="+1234567890"
+                className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <button
+              onClick={createContact}
+              disabled={!addr || !newContactName || !newContactEmail || creatingContact}
+              className="w-full px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {creatingContact ? 'Creating Contact...' : 'Create Contact'}
+            </button>
+          </div>
+          
+          {/* Result message */}
+          {createContactResult && (
+            <div className={`mt-4 p-4 rounded-lg ${
+              createContactResult.success 
+                ? 'bg-green-900/20 border border-green-600' 
+                : 'bg-red-900/20 border border-red-600'
+            }`}>
+              {createContactResult.success ? (
+                <>
+                  <p className="text-green-400 font-semibold">✅ Contact Created Successfully!</p>
+                  <p className="text-gray-300 mt-2">
+                    Created: {createContactResult.contact?.name} ({createContactResult.contact?.email})
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    You can now test: "Schedule a meeting with {createContactResult.contact?.name}"
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-red-400 font-semibold">❌ Error Creating Contact</p>
+                  <p className="text-red-300 mt-2">{createContactResult.error}</p>
+                  {createContactResult.needsReconnect && (
+                    <p className="text-yellow-400 mt-2">
+                      💡 Please disconnect and reconnect your Google Calendar to grant write permission
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

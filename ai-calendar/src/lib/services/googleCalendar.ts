@@ -115,9 +115,11 @@ export class GoogleCalendarService {
     try {
       const response = await calendar.events.insert({
         calendarId: 'primary',
-        requestBody: event
+        requestBody: event,
+        sendUpdates: 'all' // Send email invitations to all attendees
       });
       
+      console.log('[Calendar] Event created with email invitations enabled');
       return response.data;
     } catch (error) {
       console.error('Error creating calendar event:', error);
@@ -142,9 +144,11 @@ export class GoogleCalendarService {
       const response = await calendar.events.update({
         calendarId: 'primary',
         eventId: eventId,
-        requestBody: event
+        requestBody: event,
+        sendUpdates: 'all' // Send email notifications to all attendees about the update
       });
       
+      console.log('[Calendar] Event updated with email notifications enabled');
       return response.data;
     } catch (error) {
       console.error('Error updating calendar event:', error);
