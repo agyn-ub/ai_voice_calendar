@@ -28,6 +28,23 @@ pnpm start
 pnpm lint
 ```
 
+## Testing & Debugging
+
+### Test Contacts Feature
+Navigate to `/test-contacts` to:
+- View and search your Google contacts
+- Create test contacts with real email addresses
+- Test contact name resolution
+- Verify calendar invitations are sent
+
+### Console Logging
+The app includes detailed logging prefixed by service:
+- `[Contacts]` - Contact search and resolution operations
+- `[OpenAI]` - AI processing and attendee resolution
+- `[Calendar]` - Event creation and updates
+
+Monitor the browser console and terminal for these logs during development.
+
 ## Architecture
 
 ### Tech Stack
@@ -84,7 +101,7 @@ ai-calendar/
 
 #### Google Calendar OAuth Flow
 1. User initiates connection via `/api/calendar/google/connect` with wallet address
-2. OAuth redirect to Google with calendar and contacts scopes
+2. OAuth redirect to Google with calendar and contacts scopes (`contacts` for read/write)
 3. Callback to `/api/calendar/google/callback` stores encrypted tokens
 4. Token refresh handled automatically by both `GoogleCalendarService` and `GoogleContactsService`
 
@@ -93,7 +110,14 @@ ai-calendar/
 - **Smart Resolution**: Automatically resolves contact names to email addresses when creating events
 - **Confidence Scoring**: Ranks matches by confidence (exact, high, medium, low)
 - **Mixed Input Support**: Handles both email addresses and contact names in attendee lists
+- **Contact Management**: Create new contacts via `/api/calendar/google/contacts/create`
+- **List Contacts**: Fetch up to 100 contacts via `/api/calendar/google/contacts/list`
 - **Example**: "Schedule meeting with Tom" automatically finds Tom's email from contacts
+
+#### Email Invitations
+- Calendar events created with `sendUpdates: 'all'` parameter to ensure email invitations are sent
+- Attendees receive proper Google Calendar invitation emails
+- Updates to events also trigger notification emails
 
 #### Database Layer
 - JSON file storage at `calendar-connections.json`
@@ -171,6 +195,11 @@ Calendar API routes follow RESTful patterns:
 - `GET /api/calendar/google/events` - Fetch calendar events
 - `POST /api/calendar/google/events` - Create calendar event
 - `DELETE /api/calendar/google/disconnect` - Remove connection
+
+Contacts API endpoints:
+- `GET /api/calendar/google/contacts/list` - List user's Google contacts (supports page_size param)
+- `POST /api/calendar/google/contacts/create` - Create a new contact
+- `GET /api/calendar/google/contacts/test` - Test contact search functionality
 
 Assistant API endpoints:
 - `POST /api/assistant/calendar` - Process natural language calendar request
