@@ -104,6 +104,77 @@ access(all) contract MeetingStaking {
             self.participants.remove(key: address)
         }
 
+        // Mark participant as attended (organizer only)
+        access(all) fun markAttendance(participant: Address, attended: Bool) {
+            pre {
+                self.participants[participant] != nil: "Participant not found"
+                getCurrentBlock().timestamp >= self.startTime: "Meeting has not started yet"
+                !self.isFinalized: "Meeting already finalized"
+            }
+
+            let participantData = self.participants[participant]!
+            participantData.hasAttended = attended
+            self.participants[participant] = participantData
+        }
+
+        // Batch mark attendance for multiple participants
+        access(all) fun markBatchAttendance(attendees: [Address]) {
+            pre {
+                getCurrentBlock().timestamp >= self.startTime: "Meeting has not started yet"
+                !self.isFinalized: "Meeting already finalized"
+            }
+
+            // Mark all participants as not attended first
+            for address in self.participants.keys {
+                let participantData = self.participants[address]!
+                participantData.hasAttended = false
+                self.participants[address] = participantData
+            }
+
+            // Mark attendees as attended
+            for attendee in attendees {
+                if self.participants[attendee] != nil {
+                    let participantData = self.participants[attendee]!
+                    participantData.hasAttended = true
+                    self.participants[attendee] = participantData
+                }
+            }
+        }
+
+        // Verify meeting can be finalized
+        access(all) fun canFinalize(): Bool {
+            return getCurrentBlock().timestamp >= self.endTime && !self.isFinalized
+        }
+
+        // Get attendance statistics
+        access(all) fun getAttendanceStats(): {String: Int} {
+            var totalParticipants = 0
+            var attendedCount = 0
+            var stakedCount = 0
+            var attendedAndStaked = 0
+
+            for participant in self.participants.values {
+                totalParticipants = totalParticipants + 1
+                if participant.hasAttended {
+                    attendedCount = attendedCount + 1
+                }
+                if participant.hasStaked {
+                    stakedCount = stakedCount + 1
+                    if participant.hasAttended {
+                        attendedAndStaked = attendedAndStaked + 1
+                    }
+                }
+            }
+
+            return {
+                "total": totalParticipants,
+                "attended": attendedCount,
+                "staked": stakedCount,
+                "attendedAndStaked": attendedAndStaked,
+                "noShows": stakedCount - attendedAndStaked
+            }
+        }
+
         // Withdraw stake (only for organizer to distribute after meeting)
         access(self) fun withdrawStake(amount: UFix64): @FungibleToken.Vault {
             return <-self.stakeVault.withdraw(amount: amount)
