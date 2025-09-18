@@ -133,7 +133,8 @@ access(all) fun testCannotJoinAfterMeetingStarted() {
 
     // Should fail because meeting already started
     Test.expect(joinResult, Test.beFailed())
-    Test.expect(joinResult.error!.message, Test.contain("Meeting has already started"))
+    // Verify error message contains expected text
+    Test.assert(joinResult.error != nil && joinResult.error!.message.contains("Meeting has already started"), message: "Expected error about meeting already started")
 }
 
 // Helper functions

@@ -30,9 +30,8 @@ access(all) fun testEqualRewardDistribution() {
     // Create meeting with 10 FLOW stake
     let meetingId = "reward-test-001"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Reward Distribution Test", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Reward Distribution Test", stakeAmount)
 
     // All participants join
     joinMeeting(attendee1, organizer.address, meetingId, stakeAmount)
@@ -45,7 +44,7 @@ access(all) fun testEqualRewardDistribution() {
     let attendee2InitialBalance = getFlowBalance(attendee2.address)
 
     // Move time forward and mark attendance
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, attendee1.address, true)
     markAttendance(organizer, meetingId, attendee2.address, true)
     markAttendance(organizer, meetingId, noShow1.address, false)
@@ -87,9 +86,8 @@ access(all) fun testSingleAttendeeGetsAllRewards() {
     // Create meeting
     let meetingId = "reward-test-002"
     let stakeAmount = 15.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Single Attendee Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Single Attendee Meeting", stakeAmount)
 
     // All join
     joinMeeting(soleAttendee, organizer.address, meetingId, stakeAmount)
@@ -100,7 +98,7 @@ access(all) fun testSingleAttendeeGetsAllRewards() {
     let soleAttendeeInitialBalance = getFlowBalance(soleAttendee.address)
 
     // Move time forward, mark attendance
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, soleAttendee.address, true)
     markAttendance(organizer, meetingId, noShow1.address, false)
     markAttendance(organizer, meetingId, noShow2.address, false)
@@ -134,9 +132,8 @@ access(all) fun testNoRewardsWhenAllAttend() {
     // Create meeting
     let meetingId = "reward-test-003"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Full Attendance Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Full Attendance Meeting", stakeAmount)
 
     // All join
     joinMeeting(participant1, organizer.address, meetingId, stakeAmount)
@@ -148,7 +145,7 @@ access(all) fun testNoRewardsWhenAllAttend() {
     let participant3InitialBalance = getFlowBalance(participant3.address)
 
     // Move time forward, mark all as attended
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, participant1.address, true)
     markAttendance(organizer, meetingId, participant2.address, true)
     markAttendance(organizer, meetingId, participant3.address, true)
@@ -185,9 +182,8 @@ access(all) fun testOrganizerReceivesRewardWhenAllNoShow() {
     // Create meeting
     let meetingId = "reward-test-004"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "All No-Show Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "All No-Show Meeting", stakeAmount)
 
     // All join
     joinMeeting(noShow1, organizer.address, meetingId, stakeAmount)
@@ -197,7 +193,7 @@ access(all) fun testOrganizerReceivesRewardWhenAllNoShow() {
     let organizerInitialBalance = getFlowBalance(organizer.address)
 
     // Move time forward, mark all as no-shows
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, noShow1.address, false)
     markAttendance(organizer, meetingId, noShow2.address, false)
     markAttendance(organizer, meetingId, noShow3.address, false)
@@ -228,9 +224,8 @@ access(all) fun testRewardCalculationWithDifferentStakeAmounts() {
     // Test with a larger stake amount
     let meetingId = "reward-test-005"
     let stakeAmount = 75.5 // Non-round number
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Precision Test Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Precision Test Meeting", stakeAmount)
 
     // Both join
     joinMeeting(attendee, organizer.address, meetingId, stakeAmount)
@@ -239,7 +234,7 @@ access(all) fun testRewardCalculationWithDifferentStakeAmounts() {
     let attendeeInitialBalance = getFlowBalance(attendee.address)
 
     // Move time forward and mark attendance
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, attendee.address, true)
     markAttendance(organizer, meetingId, noShow.address, false)
 
@@ -292,6 +287,18 @@ access(all) fun createMeeting(_ organizer: Test.TestAccount, _ meetingId: String
     Test.expect(result, Test.beSucceeded())
 }
 
+access(all) fun createMeetingFuture(_ organizer: Test.TestAccount, _ meetingId: String, _ title: String, _ stakeAmount: UFix64) {
+    let code = Test.readFile("../transactions/create_meeting_test_future.cdc")
+    let tx = Test.Transaction(
+        code: code,
+        authorizers: [organizer.address],
+        signers: [organizer],
+        arguments: [meetingId, title, stakeAmount]
+    )
+    let result = Test.executeTransaction(tx)
+    Test.expect(result, Test.beSucceeded())
+}
+
 access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress: Address, _ meetingId: String, _ stakeAmount: UFix64) {
     let code = Test.readFile("../transactions/join_meeting.cdc")
     let tx = Test.Transaction(
@@ -305,7 +312,7 @@ access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress:
 }
 
 access(all) fun markAttendance(_ organizer: Test.TestAccount, _ meetingId: String, _ participant: Address, _ attended: Bool) {
-    let code = Test.readFile("../transactions/mark_attendance.cdc")
+    let code = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let tx = Test.Transaction(
         code: code,
         authorizers: [organizer.address],

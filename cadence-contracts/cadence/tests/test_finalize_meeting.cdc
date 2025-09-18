@@ -28,9 +28,8 @@ access(all) fun testFinalizeMeetingWithAllAttendees() {
     // Create and join meeting
     let meetingId = "finalize-test-001"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "All Attend Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "All Attend Meeting", stakeAmount)
     joinMeeting(participant1, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant2, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant3, organizer.address, meetingId, stakeAmount)
@@ -41,7 +40,7 @@ access(all) fun testFinalizeMeetingWithAllAttendees() {
     let initialBalance3 = getFlowBalance(participant3.address)
 
     // Move time forward and mark all as attended
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, participant1.address, true)
     markAttendance(organizer, meetingId, participant2.address, true)
     markAttendance(organizer, meetingId, participant3.address, true)
@@ -95,9 +94,8 @@ access(all) fun testFinalizeMeetingWithMixedAttendance() {
     // Create and join meeting
     let meetingId = "finalize-test-002"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Mixed Attendance Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Mixed Attendance Meeting", stakeAmount)
     joinMeeting(participant1, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant2, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant3, organizer.address, meetingId, stakeAmount)
@@ -110,7 +108,7 @@ access(all) fun testFinalizeMeetingWithMixedAttendance() {
     let initialBalance4 = getFlowBalance(participant4.address)
 
     // Move time forward and mark attendance
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, participant1.address, true)  // Attended
     markAttendance(organizer, meetingId, participant2.address, true)  // Attended
     markAttendance(organizer, meetingId, participant3.address, false) // No-show
@@ -151,16 +149,15 @@ access(all) fun testFinalizeMeetingWithAllNoShows() {
     // Create and join meeting
     let meetingId = "finalize-test-003"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "No-Show Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "No-Show Meeting", stakeAmount)
     joinMeeting(participant1, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant2, organizer.address, meetingId, stakeAmount)
 
     let organizerInitialBalance = getFlowBalance(organizer.address)
 
     // Move time forward and mark all as no-shows
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, participant1.address, false)
     markAttendance(organizer, meetingId, participant2.address, false)
 
@@ -187,13 +184,12 @@ access(all) fun testCannotFinalizeMeetingTwice() {
     // Create and join meeting
     let meetingId = "finalize-test-004"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Double Finalize Test", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Double Finalize Test", stakeAmount)
     joinMeeting(participant, organizer.address, meetingId, stakeAmount)
 
     // Move time forward and mark attendance
-    Test.moveTime(by: 3700.0)
+    Test.moveTime(by: 7300.0) // Move past meeting end time
     markAttendance(organizer, meetingId, participant.address, true)
 
     // First finalization should succeed
@@ -226,9 +222,8 @@ access(all) fun testCannotFinalizeBeforeMeetingStarts() {
     // Create meeting in the future
     let meetingId = "finalize-test-005"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0 // 1 hour from now
 
-    createMeeting(organizer, meetingId, "Future Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Future Meeting", stakeAmount)
     joinMeeting(participant, organizer.address, meetingId, stakeAmount)
 
     // Test: Try to finalize before meeting starts
@@ -284,6 +279,18 @@ access(all) fun createMeeting(_ organizer: Test.TestAccount, _ meetingId: String
     Test.expect(result, Test.beSucceeded())
 }
 
+access(all) fun createMeetingFuture(_ organizer: Test.TestAccount, _ meetingId: String, _ title: String, _ stakeAmount: UFix64) {
+    let code = Test.readFile("../transactions/create_meeting_test_future.cdc")
+    let tx = Test.Transaction(
+        code: code,
+        authorizers: [organizer.address],
+        signers: [organizer],
+        arguments: [meetingId, title, stakeAmount]
+    )
+    let result = Test.executeTransaction(tx)
+    Test.expect(result, Test.beSucceeded())
+}
+
 access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress: Address, _ meetingId: String, _ stakeAmount: UFix64) {
     let code = Test.readFile("../transactions/join_meeting.cdc")
     let tx = Test.Transaction(
@@ -297,7 +304,7 @@ access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress:
 }
 
 access(all) fun markAttendance(_ organizer: Test.TestAccount, _ meetingId: String, _ participant: Address, _ attended: Bool) {
-    let code = Test.readFile("../transactions/mark_attendance.cdc")
+    let code = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let tx = Test.Transaction(
         code: code,
         authorizers: [organizer.address],

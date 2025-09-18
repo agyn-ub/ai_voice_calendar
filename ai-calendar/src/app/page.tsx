@@ -1,70 +1,22 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import GoogleCalendarConnect from '@/components/GoogleCalendarConnect';
 import CalendarAssistant from '@/components/CalendarAssistant';
 import CalendarView from '@/components/CalendarView';
-import { WalletService } from '@/lib/web3/wallet';
+import { FlowWalletAuth } from '@/components/FlowWalletAuth';
+import { useFlow } from '@/components/FlowProvider';
 
 export default function Home() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const { user, loading, logIn } = useFlow();
   const [calendarUpdateTrigger, setCalendarUpdateTrigger] = useState(0);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
 
-  // Check if wallet is already connected on mount
-  useEffect(() => {
-    const checkWallet = async () => {
-      const account = await WalletService.getAccount();
-      if (account) {
-        setWalletAddress(account);
-      }
-    };
-    checkWallet();
-
-    // Set up event listeners
-    const cleanup = WalletService.setupEventListeners(
-      (accounts) => {
-        if (accounts.length > 0) {
-          setWalletAddress(accounts[0]);
-        } else {
-          setWalletAddress(null);
-        }
-      },
-      (chainId) => {
-        console.log('Chain changed:', chainId);
-      }
-    );
-
-    return cleanup;
-  }, []);
-
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const account = await WalletService.connect();
-      setWalletAddress(account);
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      alert('Failed to connect wallet. Please make sure MetaMask is installed.');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnect = () => {
-    WalletService.disconnect();
-    setWalletAddress(null);
-    setShowWalletDetails(false);
-  };
+  const walletAddress = user?.addr || null;
 
   const handleCalendarUpdate = () => {
     setCalendarUpdateTrigger(prev => prev + 1);
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   return (
@@ -90,43 +42,24 @@ export default function Home() {
 
             {/* Wallet Status */}
             <div className="flex items-center gap-3">
-              {walletAddress ? (
-                <>
-                  <button
-                    onClick={() => setShowWalletDetails(!showWalletDetails)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    <span className="text-sm font-mono text-gray-300">
-                      {formatAddress(walletAddress)}
-                    </span>
-                    <svg 
-                      className={`w-4 h-4 text-gray-400 transition-transform ${
-                        showWalletDetails ? 'rotate-180' : ''
-                      }`} 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={handleDisconnect}
-                    className="px-3 py-1.5 text-sm bg-red-600/20 text-red-400 rounded-lg border border-red-600/30 hover:bg-red-600/30 transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </>
-              ) : (
+              {walletAddress && (
                 <button
-                  onClick={handleConnect}
-                  disabled={isConnecting}
-                  className="px-4 py-1.5 text-sm bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                  onClick={() => setShowWalletDetails(!showWalletDetails)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
                 >
-                  {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
+                  <svg
+                    className={`w-4 h-4 text-gray-400 transition-transform ${
+                      showWalletDetails ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
               )}
+              <FlowWalletAuth />
             </div>
           </div>
         </div>
@@ -148,13 +81,13 @@ export default function Home() {
                   <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                     <p className="text-xs text-gray-400 mb-1">Network</p>
                     <p className="text-sm font-semibold">
-                      Flow EVM Testnet
+                      Flow Testnet
                     </p>
                   </div>
                   <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Chain ID</p>
+                    <p className="text-xs text-gray-400 mb-1">Status</p>
                     <p className="text-sm font-semibold text-green-400">
-                      545
+                      Connected
                     </p>
                   </div>
                 </div>
@@ -207,18 +140,18 @@ export default function Home() {
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
                     <p className="text-gray-400">
-                      Connect your MetaMask wallet to access your AI Calendar
+                      Connect your Flow wallet to access your AI Calendar
                     </p>
                   </div>
                   <button
-                    onClick={handleConnect}
-                    disabled={isConnecting}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                    onClick={logIn}
+                    disabled={loading}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 shadow-lg hover:shadow-xl"
                   >
-                    {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
+                    {loading ? 'Connecting...' : 'Connect Flow Wallet'}
                   </button>
                   <p className="text-xs text-gray-500">
-                    Make sure you have MetaMask installed and are connected to Flow EVM Testnet
+                    Supports Blocto, Lilico, and other Flow-compatible wallets
                   </p>
                 </div>
               </div>

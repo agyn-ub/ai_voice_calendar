@@ -141,3 +141,7 @@ test-results/
 playwright-report/
 test-results.xml
 post.txt
+# flow
+emulator-account.pkey
+imports
+text_wallet.txt

@@ -36,7 +36,7 @@ access(all) fun testMarkAttendanceAsPresent() {
     Test.moveTime(by: 3700.0) // Move past start time
 
     // Test: Mark participant1 as attended
-    let markAttendanceCode = Test.readFile("../transactions/mark_attendance.cdc")
+    let markAttendanceCode = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let markTx = Test.Transaction(
         code: markAttendanceCode,
         authorizers: [organizer.address],
@@ -83,16 +83,15 @@ access(all) fun testCannotMarkAttendanceBeforeMeetingStarts() {
     mintFlowTokens(participant, 100.0)
     setupMeetingManager(organizer)
 
-    // Create meeting in the future
+    // Create meeting using future-safe transaction
     let meetingId = "attendance-test-002"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0 // 1 hour from now
 
-    createMeeting(organizer, meetingId, "Future Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Future Meeting", stakeAmount)
     joinMeeting(participant, organizer.address, meetingId, stakeAmount)
 
     // Test: Try to mark attendance before meeting starts
-    let markAttendanceCode = Test.readFile("../transactions/mark_attendance.cdc")
+    let markAttendanceCode = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let markTx = Test.Transaction(
         code: markAttendanceCode,
         authorizers: [organizer.address],
@@ -103,7 +102,7 @@ access(all) fun testCannotMarkAttendanceBeforeMeetingStarts() {
 
     // Should fail because meeting hasn't started
     Test.expect(markResult, Test.beFailed())
-    Test.expect(markResult.error!.message, Test.contain("Meeting has not started yet"))
+    Test.assert(markResult.error != nil && markResult.error!.message.contains("Meeting has not started yet"), message: "Expected error about meeting not started")
 }
 
 access(all) fun testOnlyOrganizerCanMarkAttendance() {
@@ -121,9 +120,8 @@ access(all) fun testOnlyOrganizerCanMarkAttendance() {
     // Create and join meeting
     let meetingId = "attendance-test-003"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Organizer Test", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Organizer Test", stakeAmount)
     joinMeeting(participant1, organizer.address, meetingId, stakeAmount)
     joinMeeting(participant2, organizer.address, meetingId, stakeAmount)
 
@@ -157,20 +155,19 @@ access(all) fun testCannotChangeAttendanceAfterFinalization() {
     // Create and join meeting
     let meetingId = "attendance-test-004"
     let stakeAmount = 10.0
-    let startTime = getCurrentBlock().timestamp + 3600.0
 
-    createMeeting(organizer, meetingId, "Finalized Meeting", startTime, stakeAmount)
+    createMeetingFuture(organizer, meetingId, "Finalized Meeting", stakeAmount)
     joinMeeting(participant, organizer.address, meetingId, stakeAmount)
 
-    // Move time forward and mark attendance
-    Test.moveTime(by: 3700.0)
+    // Move time forward past the meeting end time and mark attendance
+    Test.moveTime(by: 7300.0) // Move past both start (3600) and end (7200)
     markAttendance(organizer, meetingId, participant.address, true)
 
     // Finalize the meeting
     finalizeMeeting(organizer, meetingId)
 
     // Test: Try to change attendance after finalization
-    let markAttendanceCode = Test.readFile("../transactions/mark_attendance.cdc")
+    let markAttendanceCode = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let markTx = Test.Transaction(
         code: markAttendanceCode,
         authorizers: [organizer.address],
@@ -181,7 +178,7 @@ access(all) fun testCannotChangeAttendanceAfterFinalization() {
 
     // Should fail because meeting is finalized
     Test.expect(markResult, Test.beFailed())
-    Test.expect(markResult.error!.message, Test.contain("Meeting already finalized"))
+    Test.assert(markResult.error != nil && markResult.error!.message.contains("Meeting already finalized"), message: "Expected error about meeting finalized")
 }
 
 // Helper functions
@@ -222,6 +219,18 @@ access(all) fun createMeeting(_ organizer: Test.TestAccount, _ meetingId: String
     Test.expect(result, Test.beSucceeded())
 }
 
+access(all) fun createMeetingFuture(_ organizer: Test.TestAccount, _ meetingId: String, _ title: String, _ stakeAmount: UFix64) {
+    let code = Test.readFile("../transactions/create_meeting_test_future.cdc")
+    let tx = Test.Transaction(
+        code: code,
+        authorizers: [organizer.address],
+        signers: [organizer],
+        arguments: [meetingId, title, stakeAmount]
+    )
+    let result = Test.executeTransaction(tx)
+    Test.expect(result, Test.beSucceeded())
+}
+
 access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress: Address, _ meetingId: String, _ stakeAmount: UFix64) {
     let code = Test.readFile("../transactions/join_meeting.cdc")
     let tx = Test.Transaction(
@@ -235,7 +244,7 @@ access(all) fun joinMeeting(_ participant: Test.TestAccount, _ organizerAddress:
 }
 
 access(all) fun markAttendance(_ organizer: Test.TestAccount, _ meetingId: String, _ participant: Address, _ attended: Bool) {
-    let code = Test.readFile("../transactions/mark_attendance.cdc")
+    let code = Test.readFile("../transactions/mark_attendance_individual.cdc")
     let tx = Test.Transaction(
         code: code,
         authorizers: [organizer.address],
