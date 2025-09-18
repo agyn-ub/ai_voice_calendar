@@ -1,5 +1,5 @@
-import FungibleToken from "../imports/FungibleToken.cdc"
-import FlowToken from "../imports/FlowToken.cdc"
+import FungibleToken from "../../imports/f233dcee88fe0abe/FungibleToken.cdc"
+import FlowToken from "../../imports/1654653399040a61/FlowToken.cdc"
 
 access(all) contract MeetingStaking {
 
@@ -59,8 +59,8 @@ access(all) contract MeetingStaking {
                 self.participants[participant] = Participant(address: participant)
             }
 
-            let participantData = self.participants[participant]!
-            participantData.hasStaked = true
+            var participantData = self.participants[participant]!
+            participantData.setHasStaked(true)
             self.participants[participant] = participantData
 
             // Deposit stake to vault
@@ -97,7 +97,7 @@ access(all) contract MeetingStaking {
         access(all) fun removeParticipant(address: Address) {
             pre {
                 self.participants[address] != nil: "Participant not found"
-                !self.participants[address]!.hasStaked: "Cannot remove staked participant"
+                !self.participants[address]!.getHasStaked(): "Cannot remove staked participant"
                 !self.isFinalized: "Meeting already finalized"
             }
 
@@ -112,8 +112,8 @@ access(all) contract MeetingStaking {
                 !self.isFinalized: "Meeting already finalized"
             }
 
-            let participantData = self.participants[participant]!
-            participantData.hasAttended = attended
+            var participantData = self.participants[participant]!
+            participantData.setHasAttended(attended)
             self.participants[participant] = participantData
         }
 
@@ -126,16 +126,16 @@ access(all) contract MeetingStaking {
 
             // Mark all participants as not attended first
             for address in self.participants.keys {
-                let participantData = self.participants[address]!
-                participantData.hasAttended = false
+                var participantData = self.participants[address]!
+                participantData.setHasAttended(false)
                 self.participants[address] = participantData
             }
 
             // Mark attendees as attended
             for attendee in attendees {
                 if self.participants[attendee] != nil {
-                    let participantData = self.participants[attendee]!
-                    participantData.hasAttended = true
+                    var participantData = self.participants[attendee]!
+                    participantData.setHasAttended(true)
                     self.participants[attendee] = participantData
                 }
             }
@@ -155,12 +155,12 @@ access(all) contract MeetingStaking {
 
             for participant in self.participants.values {
                 totalParticipants = totalParticipants + 1
-                if participant.hasAttended {
+                if participant.getHasAttended() {
                     attendedCount = attendedCount + 1
                 }
-                if participant.hasStaked {
+                if participant.getHasStaked() {
                     stakedCount = stakedCount + 1
-                    if participant.hasAttended {
+                    if participant.getHasAttended() {
                         attendedAndStaked = attendedAndStaked + 1
                     }
                 }
@@ -180,23 +180,36 @@ access(all) contract MeetingStaking {
             return <-self.stakeVault.withdraw(amount: amount)
         }
 
-        destroy() {
-            destroy self.stakeVault
-        }
     }
 
     // Participant struct to track individual participation
     access(all) struct Participant {
         access(all) let address: Address
         access(all) let joinedAt: UFix64
-        access(all) var hasStaked: Bool
-        access(all) var hasAttended: Bool
+        access(self) var hasStaked: Bool
+        access(self) var hasAttended: Bool
 
         init(address: Address) {
             self.address = address
             self.joinedAt = getCurrentBlock().timestamp
             self.hasStaked = false
             self.hasAttended = false
+        }
+
+        access(all) fun getHasStaked(): Bool {
+            return self.hasStaked
+        }
+
+        access(all) fun getHasAttended(): Bool {
+            return self.hasAttended
+        }
+
+        access(all) fun setHasStaked(_ value: Bool) {
+            self.hasStaked = value
+        }
+
+        access(all) fun setHasAttended(_ value: Bool) {
+            self.hasAttended = value
         }
     }
 
@@ -251,7 +264,7 @@ access(all) contract MeetingStaking {
 
         // Get reference to a specific meeting
         access(all) fun getMeeting(meetingId: String): &Meeting? {
-            return &self.meetings[meetingId] as &Meeting?
+            return &self.meetings[meetingId]
         }
 
         // Remove a meeting (only if not started and no stakes)
@@ -266,9 +279,6 @@ access(all) contract MeetingStaking {
             destroy meeting
         }
 
-        destroy() {
-            destroy self.meetings
-        }
     }
 
     // Create new MeetingManager resource
