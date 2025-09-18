@@ -13,6 +13,7 @@ This is a Flow blockchain application with Cadence smart contracts and FCL front
 - Test on emulator before testnet deployment
 - Implement proper resource handling with @ and & syntax
 - Follow MetadataViews standards for NFT projects
+- Always use cadence version 1.0
 
 ## Frequently Used Commands
 
