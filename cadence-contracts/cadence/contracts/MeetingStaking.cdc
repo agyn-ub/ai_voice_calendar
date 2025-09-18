@@ -8,6 +8,15 @@ access(all) contract MeetingStaking {
     access(all) let MeetingManagerPublicPath: PublicPath
     access(all) let MeetingManagerPrivatePath: PrivatePath
 
+    // Events
+    access(all) event MeetingCreated(meetingId: String, organizer: Address, title: String, startTime: UFix64, stakeAmount: UFix64)
+    access(all) event ParticipantAdded(meetingId: String, participant: Address)
+    access(all) event StakeDeposited(meetingId: String, participant: Address, amount: UFix64)
+    access(all) event AttendanceMarked(meetingId: String, participant: Address, attended: Bool)
+    access(all) event MeetingFinalized(meetingId: String, totalStaked: UFix64, attendees: Int, noShows: Int)
+    access(all) event RewardDistributed(meetingId: String, recipient: Address, amount: UFix64)
+    access(all) event PenaltyApplied(meetingId: String, participant: Address, amount: UFix64)
+
     // Meeting resource definition
     access(all) resource Meeting {
         access(all) let meetingId: String
@@ -66,6 +75,9 @@ access(all) contract MeetingStaking {
             // Deposit stake to vault
             self.stakeVault.deposit(from: <-from)
             self.totalStaked = self.totalStaked + self.stakeAmount
+
+            // Emit event
+            emit StakeDeposited(meetingId: self.meetingId, participant: participant, amount: self.stakeAmount)
         }
 
         // Add participant to meeting (without stake initially)
@@ -76,6 +88,9 @@ access(all) contract MeetingStaking {
             }
 
             self.participants[address] = Participant(address: address)
+
+            // Emit event
+            emit ParticipantAdded(meetingId: self.meetingId, participant: address)
         }
 
         // Get participant info
@@ -115,6 +130,9 @@ access(all) contract MeetingStaking {
             var participantData = self.participants[participant]!
             participantData.setHasAttended(attended)
             self.participants[participant] = participantData
+
+            // Emit event
+            emit AttendanceMarked(meetingId: self.meetingId, participant: participant, attended: attended)
         }
 
         // Batch mark attendance for multiple participants
@@ -223,6 +241,15 @@ access(all) contract MeetingStaking {
             }
 
             self.isFinalized = true
+
+            // Get stats and emit event
+            let stats = self.getAttendanceStats()
+            emit MeetingFinalized(
+                meetingId: self.meetingId,
+                totalStaked: self.totalStaked,
+                attendees: stats["attended"]!,
+                noShows: stats["noShows"]!
+            )
         }
 
         // Withdraw stake (only for organizer to distribute after meeting)
@@ -304,6 +331,16 @@ access(all) contract MeetingStaking {
             )
 
             self.meetings[meetingId] <-! meeting
+
+            // Emit event
+            emit MeetingCreated(
+                meetingId: meetingId,
+                organizer: self.owner!.address,
+                title: title,
+                startTime: startTime,
+                stakeAmount: stakeAmount
+            )
+
             return meetingId
         }
 
