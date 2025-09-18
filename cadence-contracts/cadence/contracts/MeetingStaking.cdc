@@ -317,6 +317,37 @@ access(all) contract MeetingStaking {
             return &self.meetings[meetingId]
         }
 
+        // Distribute rewards after meeting
+        access(all) fun distributeRewards(meetingId: String, recipientVault: Capability<&{FungibleToken.Receiver}>, recipient: Address) {
+            pre {
+                self.meetings[meetingId] != nil: "Meeting does not exist"
+            }
+
+            let meeting = &self.meetings[meetingId] as &Meeting?
+            if meeting == nil {
+                return
+            }
+
+            let rewards = meeting!.calculateRewards()
+            if rewards[recipient] != nil && rewards[recipient]! > 0.0 {
+                let amount = rewards[recipient]!
+                let vault <- meeting!.withdrawStake(amount: amount)
+                recipientVault.borrow()!.deposit(from: <-vault)
+            }
+        }
+
+        // Calculate total penalty pool for a meeting
+        access(all) fun getPenaltyPool(meetingId: String): UFix64 {
+            let meeting = &self.meetings[meetingId] as &Meeting?
+            if meeting == nil {
+                return 0.0
+            }
+
+            let stats = meeting!.getAttendanceStats()
+            let noShows = stats["noShows"]!
+            return UFix64(noShows) * meeting!.stakeAmount
+        }
+
         // Remove a meeting (only if not started and no stakes)
         access(all) fun removeMeeting(meetingId: String) {
             pre {
