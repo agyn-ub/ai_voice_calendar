@@ -175,6 +175,56 @@ access(all) contract MeetingStaking {
             }
         }
 
+        // Calculate reward distribution
+        access(all) fun calculateRewards(): {Address: UFix64} {
+            pre {
+                self.canFinalize(): "Meeting not ready to finalize"
+            }
+
+            var rewards: {Address: UFix64} = {}
+            let stats = self.getAttendanceStats()
+            let noShows = stats["noShows"]!
+            let attendedAndStaked = stats["attendedAndStaked"]!
+
+            if noShows > 0 && attendedAndStaked > 0 {
+                // Calculate penalty pool from no-shows
+                let penaltyPool = UFix64(noShows) * self.stakeAmount
+                let bonusPerAttendee = penaltyPool / UFix64(attendedAndStaked)
+
+                // Distribute rewards to attendees who staked
+                for participant in self.participants.values {
+                    if participant.getHasStaked() {
+                        if participant.getHasAttended() {
+                            // Attendee gets their stake back plus bonus
+                            rewards[participant.address] = self.stakeAmount + bonusPerAttendee
+                        } else {
+                            // No-show forfeits their stake
+                            rewards[participant.address] = 0.0
+                        }
+                    }
+                }
+            } else {
+                // No penalties to distribute, everyone who staked gets their money back
+                for participant in self.participants.values {
+                    if participant.getHasStaked() {
+                        rewards[participant.address] = self.stakeAmount
+                    }
+                }
+            }
+
+            return rewards
+        }
+
+        // Finalize meeting and prepare for distribution
+        access(all) fun finalizeMeeting() {
+            pre {
+                self.canFinalize(): "Meeting not ready to finalize"
+                !self.isFinalized: "Meeting already finalized"
+            }
+
+            self.isFinalized = true
+        }
+
         // Withdraw stake (only for organizer to distribute after meeting)
         access(self) fun withdrawStake(amount: UFix64): @FungibleToken.Vault {
             return <-self.stakeVault.withdraw(amount: amount)
