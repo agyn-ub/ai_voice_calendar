@@ -1,34 +1,35 @@
 import MeetingStaking from "../contracts/MeetingStaking.cdc"
-import FungibleToken from "../../imports/f233dcee88fe0abe/FungibleToken.cdc"
-import FlowToken from "../../imports/1654653399040a61/FlowToken.cdc"
+import "FungibleToken"
+import "FlowToken"
 
 transaction(organizerAddress: Address, meetingId: String) {
-    let meetingManager: &{MeetingStaking.MeetingManagerPublic}
-    let receiverCapability: Capability<&{FungibleToken.Receiver}>
+    let meetingManager: &MeetingStaking.MeetingManager
+    let receiverVault: &FlowToken.Vault
     let participantAddress: Address
 
-    prepare(signer: auth(Capabilities) &Account) {
+    prepare(signer: auth(Storage) &Account) {
         // Get participant's address
         self.participantAddress = signer.address
 
-        // Get reference to organizer's MeetingManager
-        self.meetingManager = getAccount(organizerAddress)
-            .capabilities.get<&{MeetingStaking.MeetingManagerPublic}>(
-                MeetingStaking.MeetingManagerPublicPath
-            )
-            .borrow() ?? panic("Could not borrow MeetingManager reference")
+        // Get reference to organizer's MeetingManager (needs to be the organizer signing)
+        self.meetingManager = signer.storage.borrow<&MeetingStaking.MeetingManager>(
+            from: MeetingStaking.MeetingManagerStoragePath
+        ) ?? panic("MeetingManager not found. This transaction must be signed by the organizer.")
 
-        // Get receiver capability
-        self.receiverCapability = signer.capabilities.get<&{FungibleToken.Receiver}>(
-            /public/flowTokenReceiver
-        ) ?? panic("Could not get receiver capability")
+        // Get receiver vault reference
+        self.receiverVault = signer.storage.borrow<&FlowToken.Vault>(
+            from: /storage/flowTokenVault
+        ) ?? panic("Could not borrow Flow token vault")
     }
 
     execute {
-        // Note: In production, this would need proper access control
-        // The distributeRewards function needs to be callable by participants
-        // Currently it's on MeetingManager which might not be accessible
+        // Claim reward using the new function
+        self.meetingManager.claimReward(
+            meetingId: meetingId,
+            participant: self.participantAddress,
+            recipientVault: self.receiverVault
+        )
 
-        log("Reward claim transaction prepared. Implementation needs access control updates.")
+        log("Reward claimed successfully")
     }
 }

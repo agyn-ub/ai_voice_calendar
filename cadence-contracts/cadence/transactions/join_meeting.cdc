@@ -1,6 +1,6 @@
 import MeetingStaking from "../contracts/MeetingStaking.cdc"
-import FungibleToken from "../../imports/f233dcee88fe0abe/FungibleToken.cdc"
-import FlowToken from "../../imports/1654653399040a61/FlowToken.cdc"
+import "FungibleToken"
+import "FlowToken"
 
 transaction(organizerAddress: Address, meetingId: String, stakeAmount: UFix64) {
     let participantVault: @FungibleToken.Vault
