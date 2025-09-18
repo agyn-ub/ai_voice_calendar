@@ -1,9 +1,10 @@
 import * as fcl from "@onflow/fcl";
 import * as t from "@onflow/types";
 
-// Contract addresses - update these after deployment
-const MEETING_STAKING_ADDRESS = process.env.NEXT_PUBLIC_MEETING_STAKING_ADDRESS || "0x8"; // Update with deployed address
+// Contract addresses for testnet
+const MEETING_STAKING_ADDRESS = process.env.NEXT_PUBLIC_MEETING_STAKING_ADDRESS || "0x2c3e84f9de31e3c7"; // Deployed contract address
 const FLOW_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_FLOW_TOKEN_ADDRESS || "0x7e60df042a9c0868"; // Testnet FlowToken
+const FUNGIBLE_TOKEN_ADDRESS = "0x9a0766d93b6608b7"; // Testnet FungibleToken
 
 export interface Meeting {
   meetingId: string;
@@ -88,13 +89,10 @@ export class FlowService {
 
       const transactionId = await fcl.mutate({
         cadence: transaction,
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 100,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error setting up Meeting Manager:", error);
@@ -154,13 +152,10 @@ export class FlowService {
           arg(endTime.toFixed(1), t.UFix64),
           arg(stakeAmount, t.UFix64),
         ],
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 200,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error creating meeting:", error);
@@ -177,7 +172,7 @@ export class FlowService {
     try {
       const transaction = `
         import MeetingStaking from ${MEETING_STAKING_ADDRESS}
-        import FungibleToken from 0x9a0766d93b6608b7
+        import FungibleToken from ${FUNGIBLE_TOKEN_ADDRESS}
         import FlowToken from ${FLOW_TOKEN_ADDRESS}
 
         transaction(organizerAddress: Address, meetingId: String, amount: UFix64) {
@@ -225,13 +220,10 @@ export class FlowService {
           arg(meetingId, t.String),
           arg(stakeAmount, t.UFix64),
         ],
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 300,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error joining meeting:", error);
@@ -272,13 +264,10 @@ export class FlowService {
           arg(meetingId, t.String),
           arg(attendees, t.Array(t.Address)),
         ],
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 200,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error marking attendance:", error);
@@ -313,13 +302,10 @@ export class FlowService {
       const transactionId = await fcl.mutate({
         cadence: transaction,
         args: (arg: any, t: any) => [arg(meetingId, t.String)],
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 150,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error finalizing meeting:", error);
@@ -369,13 +355,10 @@ export class FlowService {
           arg(organizerAddress, t.Address),
           arg(meetingId, t.String),
         ],
-        payer: fcl.authz,
-        proposer: fcl.authz,
-        authorizations: [fcl.authz],
         limit: 200,
       });
 
-      const txResult = await fcl.tx(transactionId).onceSealed();
+      await fcl.tx(transactionId).onceSealed();
       return transactionId;
     } catch (error) {
       console.error("Error claiming reward:", error);
@@ -529,7 +512,7 @@ export class FlowService {
   static async getFlowBalance(address: string): Promise<string> {
     try {
       const script = `
-        import FungibleToken from 0x9a0766d93b6608b7
+        import FungibleToken from ${FUNGIBLE_TOKEN_ADDRESS}
         import FlowToken from ${FLOW_TOKEN_ADDRESS}
 
         access(all) fun main(address: Address): UFix64 {
