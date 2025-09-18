@@ -52,11 +52,11 @@ access(all) contract MeetingStaking {
             self.totalStaked = 0.0
             self.isFinalized = false
             self.createdAt = getCurrentBlock().timestamp
-            self.stakeVault <- FlowToken.createEmptyVault() as! @FlowToken.Vault
+            self.stakeVault <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>())
         }
 
         // Deposit stake from participant
-        access(all) fun depositStake(from: @FungibleToken.Vault, participant: Address) {
+        access(all) fun depositStake(from: @{FungibleToken.Vault}, participant: Address) {
             pre {
                 from.balance == self.stakeAmount: "Stake amount must match required amount"
                 !self.isFinalized: "Meeting already finalized"
@@ -116,7 +116,7 @@ access(all) contract MeetingStaking {
                 !self.isFinalized: "Meeting already finalized"
             }
 
-            self.participants.remove(key: address)
+            let _ = self.participants.remove(key: address)
         }
 
         // Mark participant as attended (organizer only)

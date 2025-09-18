@@ -3,7 +3,7 @@ import "FungibleToken"
 import "FlowToken"
 
 transaction(organizerAddress: Address, meetingId: String, stakeAmount: UFix64) {
-    let participantVault: @FungibleToken.Vault
+    let participantVault: @{FungibleToken.Vault}
     let meetingManagerRef: &{MeetingStaking.MeetingManagerPublic}
     let participantAddress: Address
 
