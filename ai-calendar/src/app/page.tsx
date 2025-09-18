@@ -7,11 +7,13 @@ import CalendarAssistant from '@/components/CalendarAssistant';
 import CalendarView from '@/components/CalendarView';
 import { FlowWalletAuth } from '@/components/FlowWalletAuth';
 import { useFlow } from '@/components/FlowProvider';
+import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 
 export default function Home() {
   const { user, loading, logIn } = useFlow();
   const [calendarUpdateTrigger, setCalendarUpdateTrigger] = useState(0);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
+  const [showCreateMeeting, setShowCreateMeeting] = useState(false);
 
   const walletAddress = user?.addr || null;
 
@@ -98,10 +100,23 @@ export default function Home() {
           {/* Main Content Area */}
           {walletAddress ? (
             <div className="space-y-6">
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCreateMeeting(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Create Meeting with Stakes
+                </button>
+              </div>
+
               {/* Calendar Assistant - Primary Focus */}
               <div className="min-h-[600px]">
-                <CalendarAssistant 
-                  walletAddress={walletAddress} 
+                <CalendarAssistant
+                  walletAddress={walletAddress}
                   onCalendarUpdate={handleCalendarUpdate}
                 />
               </div>
@@ -159,6 +174,13 @@ export default function Home() {
           )}
         </main>
       </div>
+
+      {/* Create Meeting Modal */}
+      <CreateMeetingModal
+        isOpen={showCreateMeeting}
+        onClose={() => setShowCreateMeeting(false)}
+        onSuccess={handleCalendarUpdate}
+      />
     </div>
   );
 }
