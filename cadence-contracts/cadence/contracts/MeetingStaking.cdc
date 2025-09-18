@@ -68,6 +68,42 @@ access(all) contract MeetingStaking {
             self.totalStaked = self.totalStaked + self.stakeAmount
         }
 
+        // Add participant to meeting (without stake initially)
+        access(all) fun addParticipant(address: Address) {
+            pre {
+                !self.isFinalized: "Meeting already finalized"
+                self.participants[address] == nil: "Participant already added"
+            }
+
+            self.participants[address] = Participant(address: address)
+        }
+
+        // Get participant info
+        access(all) fun getParticipant(address: Address): Participant? {
+            return self.participants[address]
+        }
+
+        // Get all participants
+        access(all) fun getParticipants(): [Address] {
+            return self.participants.keys
+        }
+
+        // Check if participant has joined
+        access(all) fun hasParticipant(address: Address): Bool {
+            return self.participants[address] != nil
+        }
+
+        // Remove participant (only if not staked)
+        access(all) fun removeParticipant(address: Address) {
+            pre {
+                self.participants[address] != nil: "Participant not found"
+                !self.participants[address]!.hasStaked: "Cannot remove staked participant"
+                !self.isFinalized: "Meeting already finalized"
+            }
+
+            self.participants.remove(key: address)
+        }
+
         // Withdraw stake (only for organizer to distribute after meeting)
         access(self) fun withdrawStake(amount: UFix64): @FungibleToken.Vault {
             return <-self.stakeVault.withdraw(amount: amount)
