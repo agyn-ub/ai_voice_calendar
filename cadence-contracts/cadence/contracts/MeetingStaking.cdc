@@ -93,6 +93,82 @@ access(all) contract MeetingStaking {
         }
     }
 
+    // Public interface for MeetingManager
+    access(all) resource interface MeetingManagerPublic {
+        access(all) fun getMeetingIds(): [String]
+        access(all) fun getMeeting(meetingId: String): &Meeting?
+    }
+
+    // MeetingManager resource to manage all meetings for a user
+    access(all) resource MeetingManager: MeetingManagerPublic {
+        access(all) var meetings: @{String: Meeting}
+
+        init() {
+            self.meetings <- {}
+        }
+
+        // Create a new meeting
+        access(all) fun createMeeting(
+            meetingId: String,
+            calendarEventId: String,
+            title: String,
+            startTime: UFix64,
+            endTime: UFix64,
+            stakeAmount: UFix64
+        ): String {
+            pre {
+                self.meetings[meetingId] == nil: "Meeting with this ID already exists"
+                stakeAmount > 0.0: "Stake amount must be positive"
+                startTime > getCurrentBlock().timestamp: "Start time must be in the future"
+                endTime > startTime: "End time must be after start time"
+            }
+
+            let meeting <- create Meeting(
+                meetingId: meetingId,
+                calendarEventId: calendarEventId,
+                organizer: self.owner!.address,
+                title: title,
+                startTime: startTime,
+                endTime: endTime,
+                stakeAmount: stakeAmount
+            )
+
+            self.meetings[meetingId] <-! meeting
+            return meetingId
+        }
+
+        // Get list of meeting IDs
+        access(all) fun getMeetingIds(): [String] {
+            return self.meetings.keys
+        }
+
+        // Get reference to a specific meeting
+        access(all) fun getMeeting(meetingId: String): &Meeting? {
+            return &self.meetings[meetingId] as &Meeting?
+        }
+
+        // Remove a meeting (only if not started and no stakes)
+        access(all) fun removeMeeting(meetingId: String) {
+            pre {
+                self.meetings[meetingId] != nil: "Meeting does not exist"
+            }
+
+            let meeting <- self.meetings.remove(key: meetingId)!
+            assert(meeting.totalStaked == 0.0, message: "Cannot remove meeting with stakes")
+            assert(getCurrentBlock().timestamp < meeting.startTime, message: "Cannot remove started meeting")
+            destroy meeting
+        }
+
+        destroy() {
+            destroy self.meetings
+        }
+    }
+
+    // Create new MeetingManager resource
+    access(all) fun createMeetingManager(): @MeetingManager {
+        return <-create MeetingManager()
+    }
+
     // Contract initialization
     init() {
         // Set storage paths
