@@ -1,5 +1,5 @@
-import FungibleToken from "../../imports/f233dcee88fe0abe/FungibleToken.cdc"
-import FlowToken from "../../imports/1654653399040a61/FlowToken.cdc"
+import "FungibleToken"
+import "FlowToken"
 
 access(all) contract MeetingStaking {
 
@@ -160,7 +160,7 @@ access(all) contract MeetingStaking {
         }
 
         // Verify meeting can be finalized
-        access(all) fun canFinalize(): Bool {
+        access(all) view fun canFinalize(): Bool {
             return getCurrentBlock().timestamp >= self.endTime && !self.isFinalized
         }
 
@@ -252,9 +252,21 @@ access(all) contract MeetingStaking {
             )
         }
 
-        // Withdraw stake (only for organizer to distribute after meeting)
-        access(self) fun withdrawStake(amount: UFix64): @FungibleToken.Vault {
-            return <-self.stakeVault.withdraw(amount: amount)
+        // Distribute reward to a specific participant
+        access(all) fun distributeRewardToParticipant(participant: Address, recipientVault: &FlowToken.Vault) {
+            pre {
+                self.isFinalized: "Meeting must be finalized first"
+            }
+
+            let rewards = self.calculateRewards()
+            if rewards[participant] != nil && rewards[participant]! > 0.0 {
+                let amount = rewards[participant]!
+                let vault <- self.stakeVault.withdraw(amount: amount)
+                recipientVault.deposit(from: <-vault)
+
+                // Emit event
+                emit RewardDistributed(meetingId: self.meetingId, recipient: participant, amount: amount)
+            }
         }
 
     }
@@ -273,11 +285,11 @@ access(all) contract MeetingStaking {
             self.hasAttended = false
         }
 
-        access(all) fun getHasStaked(): Bool {
+        access(all) view fun getHasStaked(): Bool {
             return self.hasStaked
         }
 
-        access(all) fun getHasAttended(): Bool {
+        access(all) view fun getHasAttended(): Bool {
             return self.hasAttended
         }
 
@@ -354,22 +366,18 @@ access(all) contract MeetingStaking {
             return &self.meetings[meetingId]
         }
 
-        // Distribute rewards after meeting
-        access(all) fun distributeRewards(meetingId: String, recipientVault: Capability<&{FungibleToken.Receiver}>, recipient: Address) {
+        // Facilitate reward distribution for a participant
+        access(all) fun claimReward(meetingId: String, participant: Address, recipientVault: &FlowToken.Vault) {
             pre {
                 self.meetings[meetingId] != nil: "Meeting does not exist"
             }
 
             let meeting = &self.meetings[meetingId] as &Meeting?
-            if meeting == nil {
-                return
-            }
-
-            let rewards = meeting!.calculateRewards()
-            if rewards[recipient] != nil && rewards[recipient]! > 0.0 {
-                let amount = rewards[recipient]!
-                let vault <- meeting!.withdrawStake(amount: amount)
-                recipientVault.borrow()!.deposit(from: <-vault)
+            if meeting != nil {
+                meeting!.distributeRewardToParticipant(
+                    participant: participant,
+                    recipientVault: recipientVault
+                )
             }
         }
 
