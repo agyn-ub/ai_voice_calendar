@@ -9,6 +9,7 @@ import { FlowWalletAuth } from '@/components/FlowWalletAuth';
 import { useFlow } from '@/components/FlowProvider';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { VoiceCalendarInterface } from '@/components/VoiceCalendarInterface';
+import { UnifiedCalendarChat } from '@/components/UnifiedCalendarChat';
 
 export default function Home() {
   const { user, loading, logIn } = useFlow();
@@ -101,9 +102,9 @@ export default function Home() {
           {/* Main Content Area */}
           {walletAddress ? (
             <div className="space-y-6">
-              {/* Voice Calendar Interface - Primary Focus */}
-              <div className="min-h-[600px]">
-                <VoiceCalendarInterface />
+              {/* Unified Calendar Chat - Primary Focus */}
+              <div className="min-h-[600px] bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+                <UnifiedCalendarChat />
               </div>
 
               {/* Toggle for Classic View */}
