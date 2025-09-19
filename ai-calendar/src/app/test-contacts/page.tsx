@@ -19,6 +19,13 @@ interface TestResult {
   needsReconnect?: boolean;
 }
 
+interface SimpleContact {
+  email: string;
+  name: string | null;
+  messageCount: number;
+  lastSeen: string;
+}
+
 export default function TestContactsPage() {
   const { user } = useFlow();
   const addr = user?.addr || null;
@@ -47,9 +54,100 @@ export default function TestContactsPage() {
   const [creatingContact, setCreatingContact] = useState(false);
   const [createContactResult, setCreateContactResult] = useState<any>(null);
 
+  // Gmail sync
+  const [extractedContacts, setExtractedContacts] = useState<SimpleContact[]>([]);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'syncing' | 'done'>('idle');
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [showExtractedContacts, setShowExtractedContacts] = useState(false);
+
   useEffect(() => {
-    checkConnection();
+    if (addr) {
+      checkConnection();
+      loadStoredContacts();
+    }
   }, [addr]);
+
+  const syncGmailContacts = async () => {
+    if (!addr) return;
+
+    setSyncStatus('syncing');
+    setSyncResult(null);
+
+    try {
+      const response = await fetch('/api/calendar/google/sync-contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wallet_address: addr,
+          action: 'sync',
+          maxResults: 2000
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setSyncResult({ success: false, error: data.error || 'Failed to sync contacts' });
+      } else {
+        setSyncResult({ success: true, ...data });
+        // Fetch the stored contacts after sync
+        await loadStoredContacts();
+      }
+    } catch (error) {
+      setSyncResult({ success: false, error: 'Failed to sync Gmail contacts' });
+    } finally {
+      setSyncStatus('done');
+    }
+  };
+
+  const loadStoredContacts = async () => {
+    if (!addr) return;
+
+    setSyncStatus('loading');
+    try {
+      const response = await fetch(
+        `/api/calendar/google/sync-contacts?wallet_address=${addr}`
+      );
+      const data = await response.json();
+
+      if (data.success && data.contacts) {
+        setExtractedContacts(data.contacts);
+        setShowExtractedContacts(true);
+      }
+    } catch (error) {
+      console.error('Failed to load stored contacts:', error);
+    } finally {
+      setSyncStatus('idle');
+    }
+  };
+
+  const clearStoredContacts = async () => {
+    if (!addr) return;
+
+    try {
+      const response = await fetch('/api/calendar/google/sync-contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wallet_address: addr,
+          action: 'clear'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setExtractedContacts([]);
+        setSyncResult({ success: true, message: 'Contacts cleared' });
+      }
+    } catch (error) {
+      console.error('Failed to clear contacts:', error);
+    }
+  };
 
   const checkConnection = async () => {
     if (!addr) {
@@ -270,6 +368,137 @@ export default function TestContactsPage() {
               <p className="text-sm mt-2 text-gray-400">
                 Please connect your Google Calendar first to test contact invitations
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Gmail Contact Extraction Section */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-semibold text-purple-400">Gmail Contact Sync</h2>
+              <p className="text-gray-400 text-sm mt-1">Extract email addresses from Gmail and store locally (like Attio)</p>
+            </div>
+            <button
+              onClick={() => setShowExtractedContacts(!showExtractedContacts)}
+              className="text-sm text-gray-400 hover:text-gray-300"
+            >
+              {showExtractedContacts ? 'Hide' : 'Show'} Extracted
+            </button>
+          </div>
+
+          <div className="flex gap-3 mb-4">
+            <button
+              onClick={syncGmailContacts}
+              disabled={!addr || syncStatus === 'syncing' || syncStatus === 'loading'}
+              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {syncStatus === 'syncing' ? 'Syncing from Gmail...' : 'Sync Contacts from Gmail'}
+            </button>
+
+            {extractedContacts.length > 0 && (
+              <button
+                onClick={clearStoredContacts}
+                disabled={syncStatus === 'syncing' || syncStatus === 'loading'}
+                className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear Stored Contacts
+              </button>
+            )}
+          </div>
+
+          {/* Sync Result */}
+          {syncResult && (
+            <div className={`mb-4 p-4 rounded-lg ${
+              syncResult.success
+                ? 'bg-green-900/20 border border-green-600'
+                : 'bg-red-900/20 border border-red-600'
+            }`}>
+              {syncResult.success ? (
+                <>
+                  {syncResult.action === 'extract' && (
+                    <>
+                      <p className="text-green-400 font-semibold">✅ Extracted {syncResult.totalExtracted} contacts from Gmail</p>
+                      <p className="text-gray-300 text-sm mt-1">
+                        These are email addresses found in your Gmail headers (From/To/Cc/Bcc)
+                      </p>
+                    </>
+                  )}
+                  {syncResult.action === 'sync' && syncResult.summary && (
+                    <>
+                      <p className="text-green-400 font-semibold">✅ Sync Complete!</p>
+                      <div className="text-gray-300 text-sm mt-2">
+                        <p>• Total contacts found: {syncResult.summary.totalContacts}</p>
+                        <p>• With names: {syncResult.summary.withNames}</p>
+                        <p>• Without names: {syncResult.summary.withoutNames}</p>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-2">
+                        Contacts are now stored locally for use with calendar invites
+                      </p>
+                    </>
+                  )}
+                  {syncResult.summary && (
+                    <div className="text-gray-300 text-sm mt-2">
+                      <p>• Total: {syncResult.summary.totalContacts} contacts</p>
+                      <p>• With names: {syncResult.summary.withNames}</p>
+                      <p>• Email only: {syncResult.summary.withoutNames}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-red-400 font-semibold">❌ Error</p>
+                  <p className="text-red-300 mt-2">{syncResult.error}</p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Extracted Contacts List */}
+          {showExtractedContacts && extractedContacts.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-3">
+                Top {Math.min(20, extractedContacts.length)} of {extractedContacts.length} extracted contacts (sorted by interaction frequency):
+              </p>
+              <div className="max-h-96 overflow-y-auto">
+                <div className="grid gap-2">
+                  {extractedContacts.slice(0, 20).map((contact, index) => (
+                    <div key={index} className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-200">
+                            {contact.name || <span className="text-gray-400 italic">No name</span>}
+                          </p>
+                          <p className="text-sm text-blue-400 mt-1">{contact.email}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {contact.messageCount} email{contact.messageCount !== 1 ? 's' : ''} •
+                            Last: {new Date(contact.lastSeen).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="ml-4 flex flex-col gap-1">
+                          <span className="text-xs px-2 py-1 bg-purple-900/30 text-purple-400 rounded">
+                            {contact.messageCount} msgs
+                          </span>
+                          {contact.name && (
+                            <button
+                              onClick={() => setSearchName(contact.name)}
+                              className="text-xs px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded"
+                            >
+                              Test Search
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {extractedContacts.length > 20 && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Showing first 20 of {extractedContacts.length} contacts. Click "Sync to Google Contacts" to add all.
+                </p>
+              )}
             </div>
           )}
         </div>

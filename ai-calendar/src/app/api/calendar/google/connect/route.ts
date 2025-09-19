@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
     );
   }
   
-  // Generate the OAuth URL with calendar and contacts scopes
+  // Generate the OAuth URL with calendar, contacts, and Gmail metadata scopes
   const scopes = [
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/contacts' // Full access to create/update contacts
+    'https://www.googleapis.com/auth/contacts', // Full access to create/update contacts
+    'https://www.googleapis.com/auth/gmail.metadata' // Access to Gmail metadata for contact extraction
   ];
   
   const authUrl = oauth2Client.generateAuthUrl({

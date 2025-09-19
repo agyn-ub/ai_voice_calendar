@@ -36,9 +36,17 @@ export interface MeetingStake {
   }[];
 }
 
+export interface SimpleContact {
+  email: string;
+  name: string | null;
+  messageCount: number;
+  lastSeen: string;
+}
+
 interface Database {
   connections: { [walletAddress: string]: CalendarConnection };
   meetingStakes?: { [meetingId: string]: MeetingStake };
+  extractedContacts?: { [walletAddress: string]: SimpleContact[] };
 }
 
 function encrypt(text: string): string {
@@ -173,6 +181,65 @@ export const db = {
   read: loadDatabase,
   write: saveDatabase
 };
+
+// Extracted contacts functions
+export function saveExtractedContacts(walletAddress: string, contacts: SimpleContact[]): boolean {
+  try {
+    const db = loadDatabase();
+
+    // Initialize extractedContacts if it doesn't exist
+    if (!db.extractedContacts) {
+      db.extractedContacts = {};
+    }
+
+    // Save contacts for this wallet address
+    db.extractedContacts[walletAddress] = contacts;
+
+    saveDatabase(db);
+    return true;
+  } catch (error) {
+    console.error('Error saving extracted contacts:', error);
+    return false;
+  }
+}
+
+export function getExtractedContacts(walletAddress: string): SimpleContact[] {
+  try {
+    const db = loadDatabase();
+
+    if (!db.extractedContacts || !db.extractedContacts[walletAddress]) {
+      return [];
+    }
+
+    return db.extractedContacts[walletAddress];
+  } catch (error) {
+    console.error('Error getting extracted contacts:', error);
+    return [];
+  }
+}
+
+export function clearExtractedContacts(walletAddress: string): boolean {
+  try {
+    const db = loadDatabase();
+
+    if (!db.extractedContacts) {
+      return true;
+    }
+
+    delete db.extractedContacts[walletAddress];
+    saveDatabase(db);
+    return true;
+  } catch (error) {
+    console.error('Error clearing extracted contacts:', error);
+    return false;
+  }
+}
+
+// Get total count of extracted contacts for a wallet
+export function getExtractedContactsCount(walletAddress: string): number {
+  const contacts = getExtractedContacts(walletAddress);
+  return contacts.length;
+}
 
 // Cleanup function - no longer needed but kept for compatibility
 export function getDb() {
