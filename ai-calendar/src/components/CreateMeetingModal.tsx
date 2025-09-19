@@ -53,11 +53,18 @@ export function CreateMeetingModal({
         },
         body: JSON.stringify({
           wallet_address: user.addr,
-          title,
-          description,
-          start_time: formatDateTimeWithTimezone(startDateTime),
-          end_time: formatDateTimeWithTimezone(endDateTime),
-          attendees: attendees.split(",").map(email => email.trim()).filter(Boolean),
+          event: {
+            summary: title,
+            description,
+            start: {
+              dateTime: formatDateTimeWithTimezone(startDateTime),
+            },
+            end: {
+              dateTime: formatDateTimeWithTimezone(endDateTime),
+            },
+            attendees: attendees.split(",").map(email => ({ email: email.trim() })).filter(e => e.email),
+            stakeRequired: stakingEnabled ? parseFloat(stakeAmount) : 0,
+          },
         }),
       });
 

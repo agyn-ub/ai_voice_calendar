@@ -8,6 +8,7 @@ import CalendarView from '@/components/CalendarView';
 import { FlowWalletAuth } from '@/components/FlowWalletAuth';
 import { useFlow } from '@/components/FlowProvider';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
+import { VoiceCalendarInterface } from '@/components/VoiceCalendarInterface';
 
 export default function Home() {
   const { user, loading, logIn } = useFlow();
@@ -100,26 +101,37 @@ export default function Home() {
           {/* Main Content Area */}
           {walletAddress ? (
             <div className="space-y-6">
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowCreateMeeting(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Create Meeting with Stakes
-                </button>
+              {/* Voice Calendar Interface - Primary Focus */}
+              <div className="min-h-[600px]">
+                <VoiceCalendarInterface />
               </div>
 
-              {/* Calendar Assistant - Primary Focus */}
-              <div className="min-h-[600px]">
-                <CalendarAssistant
-                  walletAddress={walletAddress}
-                  onCalendarUpdate={handleCalendarUpdate}
-                />
-              </div>
+              {/* Toggle for Classic View */}
+              <details className="bg-gray-800 rounded-lg p-4">
+                <summary className="cursor-pointer text-gray-400 hover:text-white transition-colors">
+                  Advanced Options & Classic View
+                </summary>
+                <div className="mt-4 space-y-4">
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowCreateMeeting(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Create Meeting (Form)
+                    </button>
+                  </div>
+
+                  {/* Calendar Assistant */}
+                  <CalendarAssistant
+                    walletAddress={walletAddress}
+                    onCalendarUpdate={handleCalendarUpdate}
+                  />
+                </div>
+              </details>
               
               {/* Calendar View - Visual Calendar Grid */}
               <div>
