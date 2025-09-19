@@ -72,9 +72,12 @@ export async function POST(request: NextRequest) {
       parsedData.endTime = endDate.toISOString();
     }
 
-    // Set default stake if not specified
+    // Set default stake if not specified and ensure it's a number
     if (!parsedData.stakeAmount) {
-      parsedData.stakeAmount = 10;
+      parsedData.stakeAmount = 10.0;
+    } else {
+      // Ensure stakeAmount is a number with decimal
+      parsedData.stakeAmount = parseFloat(parsedData.stakeAmount);
     }
 
     // Set default participants if not specified

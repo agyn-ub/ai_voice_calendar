@@ -150,7 +150,7 @@ export class FlowService {
           arg(title, t.String),
           arg(startTime.toFixed(1), t.UFix64),
           arg(endTime.toFixed(1), t.UFix64),
-          arg(stakeAmount, t.UFix64),
+          arg(parseFloat(stakeAmount).toFixed(1), t.UFix64),
         ],
         limit: 200,
       });
@@ -218,7 +218,7 @@ export class FlowService {
         args: (arg: any, t: any) => [
           arg(organizerAddress, t.Address),
           arg(meetingId, t.String),
-          arg(stakeAmount, t.UFix64),
+          arg(parseFloat(stakeAmount).toFixed(1), t.UFix64),
         ],
         limit: 300,
       });
