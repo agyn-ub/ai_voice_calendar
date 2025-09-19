@@ -5,6 +5,7 @@ import { VoiceInput } from "./VoiceInput";
 import { useFlow } from "./FlowProvider";
 import FlowService from "@/lib/flow/flowService";
 import { formatDateTimeWithTimezone } from "@/lib/utils/timezone";
+import { TypingIndicator } from "./ui/TypingIndicator";
 
 interface Meeting {
   id: string;
@@ -169,16 +170,22 @@ export function VoiceCalendarInterface() {
         />
       </div>
 
-      {/* Status Message */}
-      {message && (
+      {/* Status Message or Typing Indicator */}
+      {(message || processing) && (
         <div className="mb-8 max-w-2xl w-full">
-          <div className={`p-4 rounded-lg ${
-            message.startsWith('✅') ? 'bg-green-900/50 text-green-300' :
-            message.startsWith('Error') ? 'bg-red-900/50 text-red-300' :
-            'bg-gray-800 text-gray-300'
-          }`}>
-            {message}
-          </div>
+          {processing && !message.startsWith('✅') && !message.startsWith('Error') ? (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <TypingIndicator isTyping={true} label="AI is processing" />
+            </div>
+          ) : message ? (
+            <div className={`p-4 rounded-lg ${
+              message.startsWith('✅') ? 'bg-green-900/50 text-green-300' :
+              message.startsWith('Error') ? 'bg-red-900/50 text-red-300' :
+              'bg-gray-800 text-gray-300'
+            }`}>
+              {message}
+            </div>
+          ) : null}
         </div>
       )}
 

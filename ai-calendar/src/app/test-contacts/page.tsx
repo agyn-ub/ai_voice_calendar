@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { WalletService } from '@/lib/web3/wallet';
+import { useFlow } from '@/components/FlowProvider';
 
 interface ContactMatch {
   name: string;
@@ -20,20 +20,8 @@ interface TestResult {
 }
 
 export default function TestContactsPage() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  
-  // Check if wallet is connected on mount
-  useEffect(() => {
-    const checkWallet = async () => {
-      const account = await WalletService.getAccount();
-      if (account) {
-        setWalletAddress(account);
-      }
-    };
-    checkWallet();
-  }, []);
-  
-  const addr = walletAddress;
+  const { user } = useFlow();
+  const addr = user?.addr || null;
   const [searchName, setSearchName] = useState('');
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -237,6 +225,26 @@ export default function TestContactsPage() {
     }
   };
 
+  // Show connect wallet message if not connected
+  if (!addr) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8">Test Contact Invitations</h1>
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 text-yellow-400">Flow Wallet Not Connected</h2>
+            <p className="text-gray-400 mb-4">
+              Please connect your Flow wallet first to test contact invitations.
+            </p>
+            <p className="text-sm text-gray-500">
+              Go back to the main page and connect your Flow wallet (Lilico or Blocto).
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
       <div className="max-w-4xl mx-auto">
@@ -253,7 +261,7 @@ export default function TestContactsPage() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span>Google Calendar Connected (Wallet: {addr})</span>
+              <span>Google Calendar Connected (Flow: {addr?.slice(0, 6)}...{addr?.slice(-4)})</span>
             </div>
           )}
           {connectionStatus === 'not_connected' && (
