@@ -107,15 +107,27 @@ export function VoiceInput({ onTranscript, onStateChange, className = "" }: Voic
   // Handle spacebar for push-to-talk
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !isRecording) {
+      // Check if the target is an input or textarea element
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      // Only handle spacebar for recording if not in an input field
+      if (e.code === 'Space' && !isInputField && !e.repeat && !isRecording) {
         e.preventDefault();
+        e.stopPropagation();
         startRecording();
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && isRecording) {
+      // Check if the target is an input or textarea element
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      // Only handle spacebar for recording if not in an input field
+      if (e.code === 'Space' && !isInputField && isRecording) {
         e.preventDefault();
+        e.stopPropagation();
         stopRecording();
       }
     };
