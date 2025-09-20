@@ -1,5 +1,6 @@
 import { google, gmail_v1 } from 'googleapis';
-import { getCalendarConnection, SimpleContact } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
+import { contactsDb } from '@/lib/db/contactsDb';
 
 export class GmailContactSyncService {
   private gmail: gmail_v1.Gmail;
@@ -21,13 +22,13 @@ export class GmailContactSyncService {
   }
 
   static async createFromWallet(walletAddress: string): Promise<GmailContactSyncService | null> {
-    const connection = await getCalendarConnection(walletAddress);
-    if (!connection || !connection.access_token || !connection.refresh_token) {
+    const account = accountsDb.getAccountByWallet(walletAddress);
+    if (!account || !account.access_token || !account.refresh_token) {
       return null;
     }
     return new GmailContactSyncService(
-      connection.access_token,
-      connection.refresh_token
+      account.access_token,
+      account.refresh_token
     );
   }
 
@@ -35,8 +36,8 @@ export class GmailContactSyncService {
    * Extract contacts from Gmail message headers
    * Only reads metadata (From, To, Cc, Bcc) without accessing message bodies
    */
-  async extractContactsFromGmail(maxResults: number = 1000): Promise<SimpleContact[]> {
-    const contactMap = new Map<string, SimpleContact>();
+  async extractContactsFromGmail(maxResults: number = 1000): Promise<Array<{ email: string; name: string | null }>> {
+    const contactMap = new Map<string, { email: string; name: string | null }>();
 
     try {
       // List messages with metadata scope only
@@ -177,7 +178,7 @@ export class GmailContactSyncService {
    */
   async getContactsSummary(maxResults: number = 1000): Promise<{
     totalContacts: number;
-    sampleContacts: SimpleContact[];
+    sampleContacts: Array<{ email: string; name: string | null }>;
     withNames: number;
     withoutNames: number;
   }> {

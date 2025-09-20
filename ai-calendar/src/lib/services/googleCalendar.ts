@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { getCalendarConnection, updateTokens } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
 
 export class GoogleCalendarService {
   private oauth2Client;
@@ -13,60 +13,62 @@ export class GoogleCalendarService {
   }
   
   async refreshAccessToken(walletAddress: string): Promise<string | null> {
-    const connection = getCalendarConnection(walletAddress);
-    
-    if (!connection || !connection.refresh_token) {
+    const account = accountsDb.getAccountByWallet(walletAddress);
+
+    if (!account || !account.id || !account.refresh_token) {
       console.error('No refresh token found for wallet:', walletAddress);
       return null;
     }
-    
+
     try {
       this.oauth2Client.setCredentials({
-        refresh_token: connection.refresh_token
+        refresh_token: account.refresh_token
       });
-      
+
       const { credentials } = await this.oauth2Client.refreshAccessToken();
-      
+
       if (credentials.access_token) {
         // Update tokens in database
-        const tokenExpiry = credentials.expiry_date ? 
-          Math.floor(credentials.expiry_date / 1000) : 
+        const tokenExpiry = credentials.expiry_date ?
+          Math.floor(credentials.expiry_date / 1000) :
           Math.floor(Date.now() / 1000) + 3600;
-        
-        updateTokens(
-          walletAddress,
-          credentials.access_token,
-          credentials.refresh_token || connection.refresh_token,
-          tokenExpiry
+
+        accountsDb.updateTokens(
+          account.id,
+          {
+            access_token: credentials.access_token,
+            refresh_token: credentials.refresh_token || undefined,
+            token_expiry: tokenExpiry
+          }
         );
-        
+
         return credentials.access_token;
       }
     } catch (error) {
       console.error('Error refreshing token:', error);
       return null;
     }
-    
+
     return null;
   }
   
   async getValidToken(walletAddress: string): Promise<string | null> {
-    const connection = getCalendarConnection(walletAddress);
-    
-    if (!connection || !connection.access_token) {
+    const account = accountsDb.getAccountByWallet(walletAddress);
+
+    if (!account || !account.access_token) {
       return null;
     }
-    
+
     // Check if token is expired (with 5 minute buffer)
     const now = Math.floor(Date.now() / 1000);
     const bufferTime = 300; // 5 minutes
-    
-    if (connection.token_expiry && connection.token_expiry - bufferTime <= now) {
+
+    if (account.token_expiry && account.token_expiry - bufferTime <= now) {
       // Token is expired or about to expire, refresh it
       return await this.refreshAccessToken(walletAddress);
     }
-    
-    return connection.access_token;
+
+    return account.access_token;
   }
   
   async getCalendarEvents(walletAddress: string, timeMin?: Date, timeMax?: Date, maxResults?: number) {

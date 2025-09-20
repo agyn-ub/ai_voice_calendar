@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { CALENDAR_TOOLS, CalendarEventInput } from '@/types/openai';
 import { googleCalendarService } from './googleCalendar';
-import { googleContactsService } from './googleContacts';
+import { localContactsService } from './localContacts';
 import { calendar_v3 } from 'googleapis';
 import { formatDateTimeWithTimezone, addDurationToDateTime, assembleDateTime } from '@/lib/utils/timezone';
 
@@ -334,16 +334,16 @@ Be concise and helpful in your responses.`;
 
     if (attendeeEmails && attendeeEmails.length > 0) {
       console.log('[OpenAI] Processing attendees for event creation:', attendeeEmails);
-      
+
       // Resolve attendee names to email addresses if needed
-      const { resolved, details } = await googleContactsService.resolveAttendees(
+      const { resolved, details } = await localContactsService.resolveAttendees(
         walletAddress,
         attendeeEmails
       );
-      
+
       console.log('[OpenAI] Attendee resolution summary:');
       details.forEach(detail => console.log(`  ${detail}`));
-      
+
       if (resolved.length > 0) {
         event.attendees = resolved.map((email: string) => ({ email }));
         console.log(`[OpenAI] Added ${resolved.length} attendees to event`);
@@ -401,16 +401,16 @@ Be concise and helpful in your responses.`;
 
     if (updateFields.attendeeEmails) {
       console.log('[OpenAI] Processing attendees for event update:', updateFields.attendeeEmails);
-      
+
       // Resolve attendee names to email addresses if needed
-      const { resolved, details } = await googleContactsService.resolveAttendees(
+      const { resolved, details } = await localContactsService.resolveAttendees(
         walletAddress,
         updateFields.attendeeEmails
       );
-      
+
       console.log('[OpenAI] Attendee resolution summary for update:');
       details.forEach(detail => console.log(`  ${detail}`));
-      
+
       if (resolved.length > 0) {
         event.attendees = resolved.map((email: string) => ({ email }));
         console.log(`[OpenAI] Updated event with ${resolved.length} attendees`);
