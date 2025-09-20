@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCalendarConnection } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -12,18 +12,18 @@ export async function GET(request: NextRequest) {
     );
   }
   
-  const connection = getCalendarConnection(walletAddress);
-  
-  if (!connection) {
-    return NextResponse.json({ 
+  const account = accountsDb.getAccountByWallet(walletAddress);
+
+  if (!account) {
+    return NextResponse.json({
       connected: false,
-      email: null 
+      email: null
     });
   }
-  
-  return NextResponse.json({ 
+
+  return NextResponse.json({
     connected: true,
-    email: connection.google_email,
+    email: account.google_email,
     provider: 'google'
   });
 }

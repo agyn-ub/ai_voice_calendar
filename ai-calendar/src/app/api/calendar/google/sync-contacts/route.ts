@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GmailContactSyncService } from '@/lib/services/gmailContactSync';
-import { saveExtractedContacts, getExtractedContacts, clearExtractedContacts } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
+import { contactsDb } from '@/lib/db/contactsDb';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,12 +17,21 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Sync] Starting ${action} for wallet: ${wallet_address}`);
 
+    // Get account
+    const account = accountsDb.getAccountByWallet(wallet_address);
+    if (!account || !account.id) {
+      return NextResponse.json(
+        { error: 'No calendar connection found. Please connect your Google Calendar first.' },
+        { status: 401 }
+      );
+    }
+
     // Create service instance
     const syncService = await GmailContactSyncService.createFromWallet(wallet_address);
 
     if (!syncService) {
       return NextResponse.json(
-        { error: 'No calendar connection found. Please connect your Google Calendar first.' },
+        { error: 'Invalid calendar credentials. Please reconnect your Google Calendar.' },
         { status: 401 }
       );
     }
@@ -39,33 +49,31 @@ export async function POST(request: NextRequest) {
       }
 
       case 'sync': {
-        // Extract contacts from Gmail and save to local database
+        // Extract contacts from Gmail and save to SQLite database
         console.log('[Sync] Extracting contacts from Gmail...');
         const contacts = await syncService.extractContactsFromGmail(maxResults);
 
-        // Save to database
+        // Clear existing contacts and save new ones
         console.log(`[Sync] Saving ${contacts.length} contacts to database...`);
-        const success = saveExtractedContacts(wallet_address, contacts);
+        contactsDb.clearContacts(account.id);
+        const inserted = contactsDb.saveContacts(account.id, contacts);
 
-        if (!success) {
-          return NextResponse.json(
-            { error: 'Failed to save contacts to database' },
-            { status: 500 }
-          );
-        }
+        // Update sync timestamp
+        accountsDb.updateSyncTime(account.id);
 
         // Get summary statistics
         const withNames = contacts.filter(c => c.name !== null).length;
         const withoutNames = contacts.filter(c => c.name === null).length;
         const topContacts = contacts.slice(0, 10);
 
-        console.log(`[Sync] Contact sync complete. Total: ${contacts.length}, With names: ${withNames}`);
+        console.log(`[Sync] Contact sync complete. Total: ${contacts.length}, Inserted: ${inserted}, With names: ${withNames}`);
 
         return NextResponse.json({
           success: true,
           action: 'sync',
           summary: {
             totalContacts: contacts.length,
+            inserted,
             withNames,
             withoutNames,
             topContacts
@@ -76,19 +84,13 @@ export async function POST(request: NextRequest) {
       case 'clear': {
         // Clear stored contacts
         console.log('[Sync] Clearing stored contacts...');
-        const success = clearExtractedContacts(wallet_address);
-
-        if (!success) {
-          return NextResponse.json(
-            { error: 'Failed to clear contacts' },
-            { status: 500 }
-          );
-        }
+        const success = contactsDb.clearContacts(account.id);
 
         return NextResponse.json({
           success: true,
           action: 'clear',
-          message: 'Contacts cleared successfully'
+          message: 'Contacts cleared successfully',
+          cleared: success
         });
       }
 
@@ -120,8 +122,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get stored contacts from database
-    const contacts = getExtractedContacts(wallet_address);
+    // Get account
+    const account = accountsDb.getAccountByWallet(wallet_address);
+    if (!account || !account.id) {
+      return NextResponse.json({
+        success: true,
+        contacts: [],
+        summary: {
+          totalContacts: 0,
+          withNames: 0,
+          withoutNames: 0,
+          hasData: false
+        }
+      });
+    }
+
+    // Get stored contacts from SQLite database
+    const contacts = contactsDb.getContacts(account.id, 1000);
 
     // Calculate statistics
     const withNames = contacts.filter(c => c.name !== null).length;
@@ -129,12 +146,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      contacts,
+      contacts: contacts.map(c => ({
+        email: c.email,
+        name: c.name
+      })),
       summary: {
         totalContacts: contacts.length,
         withNames,
         withoutNames,
-        hasData: contacts.length > 0
+        hasData: contacts.length > 0,
+        lastSync: account.last_sync_at
       }
     });
 

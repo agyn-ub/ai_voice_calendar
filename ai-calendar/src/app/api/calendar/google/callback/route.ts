@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { saveCalendarConnection } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -125,13 +125,14 @@ export async function GET(request: NextRequest) {
       Math.floor(tokens.expiry_date / 1000) : 
       Math.floor(Date.now() / 1000) + 3600;
     
-    // Save to database
-    saveCalendarConnection({
+    // Save to SQLite database
+    accountsDb.createOrUpdateAccount({
       wallet_address: state,
       google_email: userInfo.email || '',
       access_token: tokens.access_token || '',
       refresh_token: tokens.refresh_token || '',
-      token_expiry: tokenExpiry
+      token_expiry: tokenExpiry,
+      scopes: tokens.scope
     });
     
     // Return success HTML

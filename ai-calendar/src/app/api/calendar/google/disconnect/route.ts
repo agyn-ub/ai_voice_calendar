@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteCalendarConnection } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const deleted = deleteCalendarConnection(wallet_address);
+    const deleted = accountsDb.deleteAccount(wallet_address);
     
     if (deleted) {
       return NextResponse.json({ success: true, message: 'Calendar disconnected' });
