@@ -203,7 +203,10 @@ Be concise and helpful in your responses.`;
           actions_taken: actionsExecuted,
           events,
           toolCalls,
-          toolResponses
+          toolResponses,
+          needsDisambiguation: toolResponses?.some((r: any) => r?.needsDisambiguation),
+          ambiguousContacts: toolResponses?.find((r: any) => r?.ambiguousContacts)?.ambiguousContacts,
+          pendingEvent: toolResponses?.find((r: any) => r?.pendingEvent)?.pendingEvent
         };
       }
 
@@ -336,13 +339,36 @@ Be concise and helpful in your responses.`;
       console.log('[OpenAI] Processing attendees for event creation:', attendeeEmails);
 
       // Resolve attendee names to email addresses if needed
-      const { resolved, details } = await localContactsService.resolveAttendees(
+      const { resolved, details, ambiguous } = await localContactsService.resolveAttendees(
         walletAddress,
         attendeeEmails
       );
 
       console.log('[OpenAI] Attendee resolution summary:');
       details.forEach(detail => console.log(`  ${detail}`));
+
+      // Check if we have ambiguous contacts that need disambiguation
+      if (ambiguous && ambiguous.length > 0) {
+        console.log('[OpenAI] Disambiguation needed for contacts');
+        // Return special response indicating disambiguation is needed
+        return {
+          needsDisambiguation: true,
+          ambiguousContacts: ambiguous,
+          pendingEvent: {
+            summary,
+            description,
+            location,
+            startDateTime: formattedStartDateTime,
+            endDateTime: formattedEndDateTime,
+            isAllDay,
+            reminderMinutes,
+            recurrence,
+            stakeRequired,
+            resolvedAttendees: resolved // Keep any that were resolved
+          },
+          message: `I found multiple contacts matching some of the names. Please clarify which ones you meant.`
+        };
+      }
 
       if (resolved.length > 0) {
         event.attendees = resolved.map((email: string) => ({ email }));

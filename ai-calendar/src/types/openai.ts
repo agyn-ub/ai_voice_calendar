@@ -87,6 +87,33 @@ export interface AssistantResponse {
     tool_call_id: string;
     content: string;
   }>;
+  needsDisambiguation?: boolean;
+  ambiguousContacts?: AmbiguousContact[];
+  pendingEvent?: PendingEvent;
+}
+
+export interface AmbiguousContact {
+  searchQuery: string;
+  matches: ContactMatch[];
+}
+
+export interface ContactMatch {
+  email: string;
+  name: string;
+  confidence: number;
+}
+
+export interface PendingEvent {
+  summary: string;
+  description?: string;
+  location?: string;
+  startDateTime: string;
+  endDateTime: string;
+  isAllDay?: boolean;
+  reminderMinutes?: number;
+  recurrence?: string;
+  stakeRequired?: number;
+  resolvedAttendees?: string[];
 }
 
 export const CALENDAR_TOOLS = [

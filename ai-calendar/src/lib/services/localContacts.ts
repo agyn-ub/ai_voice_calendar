@@ -4,6 +4,18 @@ import { contactsDb } from '@/lib/db/contactsDb';
 export interface ResolveResult {
   resolved: string[];  // Array of resolved email addresses
   details: string[];   // Human-readable resolution details
+  ambiguous?: AmbiguousContact[]; // Contacts needing disambiguation
+}
+
+export interface AmbiguousContact {
+  searchQuery: string;
+  matches: ContactMatch[];
+}
+
+export interface ContactMatch {
+  email: string;
+  name: string;
+  confidence: number;
 }
 
 class LocalContactsService {
@@ -22,6 +34,7 @@ class LocalContactsService {
 
     const resolved: string[] = [];
     const details: string[] = [];
+    const ambiguous: AmbiguousContact[] = [];
 
     for (const attendee of attendees) {
       if (!attendee || attendee.trim() === '') {
@@ -39,22 +52,58 @@ class LocalContactsService {
         details.push(`✓ ${trimmed} (email address)`);
       } else {
         // It's a name, search in contacts
-        const contact = contactsDb.findBestMatchSync(account.id, trimmed);
+        const searchResults = await contactsDb.searchContactsByName(account.id, trimmed);
 
-        if (contact) {
+        if (searchResults.length === 0) {
+          // No matches found
+          console.warn(`[LocalContacts] ✗ Could not find contact for: "${trimmed}"`);
+          details.push(`✗ ${trimmed} (contact not found)`);
+        } else if (searchResults.length === 1) {
+          // Single match, use it
+          const contact = searchResults[0];
           console.log(`[LocalContacts] ✓ Resolved "${trimmed}" to ${contact.name || 'Unknown'} (${contact.email})`);
           resolved.push(contact.email);
           details.push(`✓ ${contact.name || trimmed} (${contact.email})`);
         } else {
-          // Could not resolve - log but don't fail
-          console.warn(`[LocalContacts] ✗ Could not find contact for: "${trimmed}"`);
-          details.push(`✗ ${trimmed} (contact not found)`);
+          // Multiple matches - check if we need disambiguation
+          const highConfidenceMatches = searchResults.filter(r => r.confidence >= 0.8);
+
+          if (highConfidenceMatches.length > 1) {
+            // Multiple high-confidence matches - need disambiguation
+            console.log(`[LocalContacts] ⚠ Ambiguous: "${trimmed}" matches ${highConfidenceMatches.length} contacts`);
+            ambiguous.push({
+              searchQuery: trimmed,
+              matches: highConfidenceMatches.map(m => ({
+                email: m.email,
+                name: m.name || m.email,
+                confidence: m.confidence
+              }))
+            });
+            details.push(`⚠ ${trimmed} (${highConfidenceMatches.length} matches - needs clarification)`);
+          } else if (highConfidenceMatches.length === 1) {
+            // Single high-confidence match, use it
+            const contact = highConfidenceMatches[0];
+            console.log(`[LocalContacts] ✓ Resolved "${trimmed}" to ${contact.name || 'Unknown'} (${contact.email})`);
+            resolved.push(contact.email);
+            details.push(`✓ ${contact.name || trimmed} (${contact.email})`);
+          } else {
+            // Only low confidence matches - use the best one but note it
+            const best = searchResults[0];
+            console.log(`[LocalContacts] ~ Low confidence match: "${trimmed}" to ${best.name || 'Unknown'} (${best.email})`);
+            resolved.push(best.email);
+            details.push(`~ ${best.name || trimmed} (${best.email}) - low confidence match`);
+          }
         }
       }
     }
 
-    console.log(`[LocalContacts] Resolution complete. Resolved ${resolved.length}/${attendees.length} attendees`);
-    return { resolved, details };
+    console.log(`[LocalContacts] Resolution complete. Resolved ${resolved.length}/${attendees.length} attendees, ${ambiguous.length} need disambiguation`);
+
+    const result: ResolveResult = { resolved, details };
+    if (ambiguous.length > 0) {
+      result.ambiguous = ambiguous;
+    }
+    return result;
   }
 
   /**

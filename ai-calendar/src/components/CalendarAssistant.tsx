@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { AssistantResponse } from '@/types/openai';
+import { AssistantResponse, AmbiguousContact, PendingEvent } from '@/types/openai';
 import MessageBubble from './ui/MessageBubble';
 import ChatInput from './ui/ChatInput';
 import { getUserTimezone } from '@/lib/utils/timezone';
@@ -17,6 +17,9 @@ interface Message {
   content: string;
   timestamp: Date;
   actions?: any[];
+  needsDisambiguation?: boolean;
+  ambiguousContacts?: AmbiguousContact[];
+  pendingEvent?: PendingEvent;
 }
 
 export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: CalendarAssistantProps) {
@@ -25,6 +28,7 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>('UTC');
+  const [pendingEventData, setPendingEventData] = useState<PendingEvent | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -74,25 +78,98 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
         throw new Error(data.message || 'Failed to process request');
       }
       
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.message,
-        timestamp: new Date(),
-        actions: data.actions_taken
-      }]);
-      
+      // Check if disambiguation is needed
+      if (data.needsDisambiguation && data.ambiguousContacts) {
+        setPendingEventData(data.pendingEvent || null);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date(),
+          actions: data.actions_taken,
+          needsDisambiguation: true,
+          ambiguousContacts: data.ambiguousContacts,
+          pendingEvent: data.pendingEvent
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date(),
+          actions: data.actions_taken
+        }]);
+
+        if (data.actions_taken && data.actions_taken.length > 0 && onCalendarUpdate) {
+          onCalendarUpdate();
+        }
+      }
+
       if (data.conversation_id) {
         setConversationId(data.conversation_id);
-      }
-      
-      if (data.actions_taken && data.actions_taken.length > 0 && onCalendarUpdate) {
-        onCalendarUpdate();
       }
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: error instanceof Error ? error.message : 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleContactSelection = async (selectedEmail: string, searchQuery: string) => {
+    if (!walletAddress || !pendingEventData) return;
+
+    setIsLoading(true);
+
+    // Create a message to complete the event creation with the selected contact
+    const disambiguationMessage = `Use ${selectedEmail} for ${searchQuery}`;
+
+    try {
+      // Send the selected contact back to complete event creation
+      const response = await fetch('/api/assistant/calendar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wallet_address: walletAddress,
+          message: disambiguationMessage,
+          conversation_id: conversationId,
+          timezone: userTimezone,
+          pendingEvent: {
+            ...pendingEventData,
+            disambiguationResolution: {
+              [searchQuery]: selectedEmail
+            }
+          }
+        }),
+      });
+
+      const data: AssistantResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to process request');
+      }
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date(),
+        actions: data.actions_taken
+      }]);
+
+      setPendingEventData(null);
+
+      if (data.actions_taken && data.actions_taken.length > 0 && onCalendarUpdate) {
+        onCalendarUpdate();
+      }
+    } catch (error) {
+      console.error('Error handling contact selection:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, there was an error creating the event. Please try again.',
         timestamp: new Date()
       }]);
     } finally {
@@ -219,13 +296,49 @@ export default function CalendarAssistant({ walletAddress, onCalendarUpdate }: C
         )}
         
         {messages.map((msg, index) => (
-          <MessageBubble
-            key={index}
-            role={msg.role}
-            content={msg.content}
-            timestamp={msg.timestamp}
-            actions={msg.actions}
-          />
+          <div key={index}>
+            <MessageBubble
+              role={msg.role}
+              content={msg.content}
+              timestamp={msg.timestamp}
+              actions={msg.actions}
+            />
+
+            {/* Show disambiguation options if needed */}
+            {msg.needsDisambiguation && msg.ambiguousContacts && (
+              <div className="ml-12 mt-3 space-y-3">
+                {msg.ambiguousContacts.map((ambiguous, ambIdx) => (
+                  <div key={ambIdx} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <p className="text-sm text-gray-400 mb-3">
+                      Which <span className="font-semibold text-gray-200">"{ambiguous.searchQuery}"</span> did you mean?
+                    </p>
+                    <div className="space-y-2">
+                      {ambiguous.matches.map((match, matchIdx) => (
+                        <button
+                          key={matchIdx}
+                          onClick={() => handleContactSelection(match.email, ambiguous.searchQuery)}
+                          disabled={isLoading}
+                          className="w-full text-left p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex justify-between items-center group disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div>
+                            <div className="font-medium text-gray-200 group-hover:text-white">
+                              {match.name}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {match.email}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                            {Math.round(match.confidence * 100)}% match
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
         
         <WhatsAppTypingIndicator isTyping={isLoading} />
