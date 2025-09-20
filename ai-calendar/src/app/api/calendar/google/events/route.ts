@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { googleCalendarService } from '@/lib/services/googleCalendar';
 import { accountsDb } from '@/lib/db/accountsDb';
 import { StakingService } from '@/lib/services/stakingService';
+import { GmailNotificationService } from '@/lib/services/gmailNotificationService';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -99,14 +100,50 @@ export async function POST(request: NextRequest) {
           startTime,
           endTime
         );
-        
+
+        // Send stake invitation emails to attendees
+        if (createdEvent.attendees && createdEvent.attendees.length > 0) {
+          try {
+            // Create Gmail service for the organizer
+            const gmailService = await GmailNotificationService.createFromWallet(wallet_address);
+
+            if (gmailService) {
+              // Get attendee emails (excluding the organizer)
+              const attendeeEmails = createdEvent.attendees
+                .filter(attendee => !attendee.organizer && attendee.email)
+                .map(attendee => attendee.email as string);
+
+              if (attendeeEmails.length > 0) {
+                // Send stake invitation
+                await gmailService.sendStakeInvitation(attendeeEmails, {
+                  title: createdEvent.summary || 'Meeting',
+                  startTime,
+                  endTime,
+                  stakeAmount: event.stakeRequired,
+                  meetingId,
+                  organizerName: createdEvent.organizer?.displayName,
+                  location: createdEvent.location
+                });
+
+                console.log(`[Events] Sent stake invitations to ${attendeeEmails.length} attendees`);
+              }
+            } else {
+              console.warn('[Events] Could not create Gmail service - user may need to reconnect');
+            }
+          } catch (emailError) {
+            console.error('[Events] Error sending stake invitations:', emailError);
+            // Don't fail the whole request if email sending fails
+          }
+        }
+
         // Update event description to include staking info
         const stakingInfo = `\n\n💰 Staking Required: ${event.stakeRequired} FLOW\n` +
           `Meeting ID: ${meetingId}\n` +
+          `Stake Link: ${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/stake/${meetingId}\n` +
           `Stake by: ${new Date(startTime.getTime() - 60 * 60 * 1000).toLocaleString()}`;
-        
+
         const updatedDescription = (createdEvent.description || '') + stakingInfo;
-        
+
         // Update the event with staking information
         await googleCalendarService.updateCalendarEvent(
           wallet_address,
