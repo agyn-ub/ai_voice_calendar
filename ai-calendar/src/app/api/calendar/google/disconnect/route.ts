@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const deleted = accountsDb.deleteAccount(wallet_address);
+    const deleted = accountsDb.deleteAccountSync(wallet_address);
     
     if (deleted) {
       return NextResponse.json({ success: true, message: 'Calendar disconnected' });

@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
       Math.floor(Date.now() / 1000) + 3600;
     
     // Save to SQLite database
-    accountsDb.createOrUpdateAccount({
+    accountsDb.createOrUpdateAccountSync({
       wallet_address: state,
       google_email: userInfo.email || '',
       access_token: tokens.access_token || '',

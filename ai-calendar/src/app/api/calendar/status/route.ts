@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     );
   }
   
-  const account = accountsDb.getAccountByWallet(walletAddress);
+  const account = accountsDb.getAccountByWalletSync(walletAddress);
 
   if (!account) {
     return NextResponse.json({

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     console.log(`[Sync] Starting ${action} for wallet: ${wallet_address}`);
 
     // Get account
-    const account = accountsDb.getAccountByWallet(wallet_address);
+    const account = accountsDb.getAccountByWalletSync(wallet_address);
     if (!account || !account.id) {
       return NextResponse.json(
         { error: 'No calendar connection found. Please connect your Google Calendar first.' },
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get account
-    const account = accountsDb.getAccountByWallet(wallet_address);
+    const account = accountsDb.getAccountByWalletSync(wallet_address);
     if (!account || !account.id) {
       return NextResponse.json({
         success: true,

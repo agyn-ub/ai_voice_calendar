@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   }
   
   // Check if calendar is connected
-  const account = accountsDb.getAccountByWallet(walletAddress);
+  const account = accountsDb.getAccountByWalletSync(walletAddress);
   if (!account) {
     return NextResponse.json(
       { error: 'No calendar connected' },
