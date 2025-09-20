@@ -40,7 +40,6 @@ export class GmailContactSyncService {
 
     try {
       // List messages with metadata scope only
-      // Note: Cannot use 'q' parameter with gmail.metadata scope
       const response = await this.gmail.users.messages.list({
         userId: 'me',
         maxResults
@@ -59,7 +58,7 @@ export class GmailContactSyncService {
           userId: 'me',
           id: message.id!,
           format: 'METADATA',
-          metadataHeaders: ['From', 'To', 'Cc', 'Bcc', 'Date'],
+          metadataHeaders: ['From', 'To', 'Cc', 'Bcc'],
         }).catch(err => {
           console.error(`[Gmail] Error fetching message ${message.id}:`, err.message);
           return null;
@@ -73,8 +72,6 @@ export class GmailContactSyncService {
         if (!messageResponse?.data?.payload?.headers) continue;
 
         const headers = messageResponse.data.payload.headers;
-        const dateHeader = headers.find(h => h.name === 'Date');
-        const messageDate = dateHeader ? new Date(dateHeader.value!) : new Date();
 
         // Extract contacts from all email fields
         const emailFields = ['From', 'To', 'Cc', 'Bcc'];
@@ -90,49 +87,27 @@ export class GmailContactSyncService {
             // Skip noreply and system emails
             if (this.isSystemEmail(email)) continue;
 
+            // Store contact with name if we have it, or update name if better
             if (contactMap.has(email)) {
               const existing = contactMap.get(email)!;
-              existing.messageCount++;
               // Update name if we found one and didn't have it before
               if (name && !existing.name) {
                 existing.name = name;
-              }
-              // Keep the most recent interaction
-              const existingDate = new Date(existing.lastSeen);
-              if (messageDate > existingDate) {
-                existing.lastSeen = messageDate.toISOString();
               }
             } else {
               contactMap.set(email, {
                 email,
                 name: name || null,
-                lastSeen: messageDate.toISOString(),
-                messageCount: 1,
               });
             }
           }
         }
       }
 
-      // Convert map to array and sort by interaction frequency and recency
-      const contacts = Array.from(contactMap.values())
-        .sort((a, b) => {
-          // First sort by message count (more interactions = higher priority)
-          if (b.messageCount !== a.messageCount) {
-            return b.messageCount - a.messageCount;
-          }
-          // Then by recency
-          return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
-        });
+      // Convert map to array
+      const contacts = Array.from(contactMap.values());
 
       console.log(`[Gmail] Extracted ${contacts.length} unique contacts`);
-
-      // Log top 10 contacts for debugging
-      console.log('[Gmail] Top contacts:', contacts.slice(0, 10).map(c => ({
-        email: c.email,
-        name: c.name,
-        messages: c.messageCount,
-      })));
 
       return contacts;
 
@@ -202,7 +177,7 @@ export class GmailContactSyncService {
    */
   async getContactsSummary(maxResults: number = 1000): Promise<{
     totalContacts: number;
-    topContacts: SimpleContact[];
+    sampleContacts: SimpleContact[];
     withNames: number;
     withoutNames: number;
   }> {
@@ -210,7 +185,7 @@ export class GmailContactSyncService {
 
     return {
       totalContacts: contacts.length,
-      topContacts: contacts.slice(0, 20),
+      sampleContacts: contacts.slice(0, 20),
       withNames: contacts.filter(c => c.name !== null).length,
       withoutNames: contacts.filter(c => c.name === null).length,
     };

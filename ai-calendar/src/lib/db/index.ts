@@ -39,8 +39,6 @@ export interface MeetingStake {
 export interface SimpleContact {
   email: string;
   name: string | null;
-  messageCount: number;
-  lastSeen: string;
 }
 
 interface Database {
