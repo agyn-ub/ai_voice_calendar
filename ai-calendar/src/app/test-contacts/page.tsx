@@ -144,7 +144,7 @@ export default function TestContactsPage() {
         body: JSON.stringify({
           wallet_address: addr,
           action: 'sync',
-          maxResults: 2000
+          maxPages: 20  // Will process up to 10,000 messages (500 per page * 20 pages)
         })
       });
 

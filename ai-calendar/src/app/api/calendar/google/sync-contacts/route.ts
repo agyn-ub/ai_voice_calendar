@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     await db.initialize();
 
     const body = await request.json();
-    const { wallet_address, action = 'sync', maxResults = 2000 } = body;
+    const { wallet_address, action = 'sync', maxPages = 10 } = body;
 
     if (!wallet_address) {
       return NextResponse.json(
@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'preview': {
-        // Just get a summary without saving
+        // Just get a summary without saving (only 1 page for preview)
         console.log('[Sync] Getting contact summary...');
-        const summary = await syncService.getContactsSummary(maxResults);
+        const summary = await syncService.getContactsSummary(1);
         return NextResponse.json({
           success: true,
           action: 'preview',
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
 
       case 'sync': {
         // Extract contacts from Gmail and save to SQLite database
-        console.log('[Sync] Extracting contacts from Gmail...');
-        const contacts = await syncService.extractContactsFromGmail(maxResults);
+        console.log(`[Sync] Extracting contacts from Gmail (up to ${maxPages} pages)...`);
+        const contacts = await syncService.extractContactsFromGmail(maxPages);
 
         // Clear existing contacts and save new ones
         console.log(`[Sync] Saving ${contacts.length} contacts to database...`);

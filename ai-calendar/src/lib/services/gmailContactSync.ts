@@ -33,82 +33,120 @@ export class GmailContactSyncService {
   }
 
   /**
-   * Extract contacts from Gmail message headers
+   * Extract ALL contacts from Gmail message headers with pagination
    * Only reads metadata (From, To, Cc, Bcc) without accessing message bodies
    */
-  async extractContactsFromGmail(maxResults: number = 1000): Promise<Array<{ email: string; name: string | null }>> {
+  async extractContactsFromGmail(maxPages: number = 10): Promise<Array<{ email: string; name: string | null }>> {
     const contactMap = new Map<string, { email: string; name: string | null }>();
+    let pageToken: string | undefined = undefined;
+    let pageCount = 0;
+    let totalMessagesProcessed = 0;
+    const pageSize = 500; // Process 500 messages per page
 
     try {
-      // List messages with metadata scope only
-      const response = await this.gmail.users.messages.list({
-        userId: 'me',
-        maxResults
-      });
+      console.log('[Gmail] Starting contact extraction from Gmail...');
 
-      if (!response.data.messages) {
-        console.log('[Gmail] No messages found');
-        return [];
-      }
+      // Continue fetching pages until no more pages or max pages reached
+      do {
+        pageCount++;
+        console.log(`[Gmail] Fetching page ${pageCount}...`);
 
-      console.log(`[Gmail] Processing ${response.data.messages.length} messages for contacts`);
-
-      // Batch get message metadata
-      const messagePromises = response.data.messages.map(message =>
-        this.gmail.users.messages.get({
+        // List messages with metadata scope only
+        const response = await this.gmail.users.messages.list({
           userId: 'me',
-          id: message.id!,
-          format: 'METADATA',
-          metadataHeaders: ['From', 'To', 'Cc', 'Bcc'],
-        }).catch(err => {
-          console.error(`[Gmail] Error fetching message ${message.id}:`, err.message);
-          return null;
-        })
-      );
+          maxResults: pageSize,
+          pageToken: pageToken
+        });
 
-      const messages = await Promise.all(messagePromises);
+        if (!response.data.messages || response.data.messages.length === 0) {
+          console.log('[Gmail] No more messages found');
+          break;
+        }
 
-      // Process each message's headers
-      for (const messageResponse of messages) {
-        if (!messageResponse?.data?.payload?.headers) continue;
+        const messagesInPage = response.data.messages.length;
+        console.log(`[Gmail] Processing ${messagesInPage} messages from page ${pageCount}...`);
 
-        const headers = messageResponse.data.payload.headers;
+        // Process messages in smaller batches to avoid overwhelming the API
+        const batchSize = 50;
+        for (let i = 0; i < messagesInPage; i += batchSize) {
+          const batch = response.data.messages.slice(i, Math.min(i + batchSize, messagesInPage));
 
-        // Extract contacts from all email fields
-        const emailFields = ['From', 'To', 'Cc', 'Bcc'];
+          // Batch get message metadata
+          const messagePromises = batch.map(message =>
+            this.gmail.users.messages.get({
+              userId: 'me',
+              id: message.id!,
+              format: 'METADATA',
+              metadataHeaders: ['From', 'To', 'Cc', 'Bcc'],
+            }).catch(err => {
+              // Silently skip failed messages to avoid spam in logs
+              return null;
+            })
+          );
 
-        for (const field of emailFields) {
-          const header = headers.find(h => h.name === field);
-          if (!header?.value) continue;
+          const messages = await Promise.all(messagePromises);
 
-          // Parse email addresses from header
-          const addresses = this.parseEmailAddresses(header.value);
+          // Process each message's headers
+          for (const messageResponse of messages) {
+            if (!messageResponse?.data?.payload?.headers) continue;
 
-          for (const { email, name } of addresses) {
-            // Skip noreply and system emails
-            if (this.isSystemEmail(email)) continue;
+            const headers = messageResponse.data.payload.headers;
 
-            // Store contact with name if we have it, or update name if better
-            if (contactMap.has(email)) {
-              const existing = contactMap.get(email)!;
-              // Update name if we found one and didn't have it before
-              if (name && !existing.name) {
-                existing.name = name;
+            // Extract contacts from all email fields
+            const emailFields = ['From', 'To', 'Cc', 'Bcc'];
+
+            for (const field of emailFields) {
+              const header = headers.find(h => h.name === field);
+              if (!header?.value) continue;
+
+              // Parse email addresses from header
+              const addresses = this.parseEmailAddresses(header.value);
+
+              for (const { email, name } of addresses) {
+                // Skip noreply and system emails
+                if (this.isSystemEmail(email)) continue;
+
+                // Store contact with name if we have it, or update name if better
+                if (contactMap.has(email)) {
+                  const existing = contactMap.get(email)!;
+                  // Update name if we found one and didn't have it before
+                  if (name && !existing.name) {
+                    existing.name = name;
+                  }
+                } else {
+                  contactMap.set(email, {
+                    email,
+                    name: name || null,
+                  });
+                }
               }
-            } else {
-              contactMap.set(email, {
-                email,
-                name: name || null,
-              });
             }
           }
+
+          // Add small delay between batches to avoid rate limiting
+          if (i + batchSize < messagesInPage) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
-      }
+
+        totalMessagesProcessed += messagesInPage;
+        console.log(`[Gmail] Page ${pageCount} complete. Total messages processed: ${totalMessagesProcessed}, Unique contacts found: ${contactMap.size}`);
+
+        // Get next page token
+        pageToken = response.data.nextPageToken;
+
+        // Add delay between pages to avoid rate limiting
+        if (pageToken && pageCount < maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+      } while (pageToken && pageCount < maxPages);
 
       // Convert map to array
       const contacts = Array.from(contactMap.values());
 
-      console.log(`[Gmail] Extracted ${contacts.length} unique contacts`);
+      console.log(`[Gmail] Extraction complete! Processed ${pageCount} pages, ${totalMessagesProcessed} messages`);
+      console.log(`[Gmail] Found ${contacts.length} unique contacts`);
 
       return contacts;
 
@@ -176,13 +214,13 @@ export class GmailContactSyncService {
   /**
    * Get a summary of extracted contacts
    */
-  async getContactsSummary(maxResults: number = 1000): Promise<{
+  async getContactsSummary(maxPages: number = 1): Promise<{
     totalContacts: number;
     sampleContacts: Array<{ email: string; name: string | null }>;
     withNames: number;
     withoutNames: number;
   }> {
-    const contacts = await this.extractContactsFromGmail(maxResults);
+    const contacts = await this.extractContactsFromGmail(maxPages);
 
     return {
       totalContacts: contacts.length,
