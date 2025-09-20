@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/contacts', // Full access to create/update contacts
-    'https://www.googleapis.com/auth/gmail.metadata' // Access to Gmail metadata for contact extraction
+    'https://www.googleapis.com/auth/gmail.metadata', // Access to Gmail metadata for contact extraction
+    'https://www.googleapis.com/auth/gmail.send' // Send emails on behalf of the user
   ];
   
   const authUrl = oauth2Client.generateAuthUrl({
