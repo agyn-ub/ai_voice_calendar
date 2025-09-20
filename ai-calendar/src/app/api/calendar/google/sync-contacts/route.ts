@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GmailContactSyncService } from '@/lib/services/gmailContactSync';
 import { accountsDb } from '@/lib/db/accountsDb';
 import { contactsDb } from '@/lib/db/contactsDb';
+import db from '@/lib/db/sqlite';
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure database is initialized
+    await db.initialize();
+
     const body = await request.json();
     const { wallet_address, action = 'sync', maxResults = 2000 } = body;
 
@@ -19,7 +23,16 @@ export async function POST(request: NextRequest) {
 
     // Get account
     const account = accountsDb.getAccountByWalletSync(wallet_address);
+    console.log('[Sync] Account lookup result:', {
+      found: !!account,
+      hasId: !!(account?.id),
+      hasAccessToken: !!(account?.access_token),
+      hasRefreshToken: !!(account?.refresh_token),
+      walletAddress: wallet_address
+    });
+
     if (!account || !account.id) {
+      console.error('[Sync] No account found for wallet:', wallet_address);
       return NextResponse.json(
         { error: 'No calendar connection found. Please connect your Google Calendar first.' },
         { status: 401 }
@@ -55,11 +68,11 @@ export async function POST(request: NextRequest) {
 
         // Clear existing contacts and save new ones
         console.log(`[Sync] Saving ${contacts.length} contacts to database...`);
-        contactsDb.clearContacts(account.id);
-        const inserted = contactsDb.saveContacts(account.id, contacts);
+        await contactsDb.clearContacts(account.id);
+        const inserted = await contactsDb.saveContacts(account.id, contacts);
 
         // Update sync timestamp
-        accountsDb.updateSyncTime(account.id);
+        await accountsDb.updateSyncTime(account.id);
 
         // Get summary statistics
         const withNames = contacts.filter(c => c.name !== null).length;
@@ -84,7 +97,7 @@ export async function POST(request: NextRequest) {
       case 'clear': {
         // Clear stored contacts
         console.log('[Sync] Clearing stored contacts...');
-        const success = contactsDb.clearContacts(account.id);
+        const success = await contactsDb.clearContacts(account.id);
 
         return NextResponse.json({
           success: true,
@@ -111,6 +124,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // Ensure database is initialized
+  await db.initialize();
   try {
     const { searchParams } = new URL(request.url);
     const wallet_address = searchParams.get('wallet_address');
@@ -138,7 +153,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get stored contacts from SQLite database
-    const contacts = contactsDb.getContacts(account.id, 1000);
+    const contacts = await contactsDb.getContacts(account.id, 1000);
 
     // Calculate statistics
     const withNames = contacts.filter(c => c.name !== null).length;

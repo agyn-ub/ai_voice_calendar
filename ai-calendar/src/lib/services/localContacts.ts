@@ -39,7 +39,7 @@ class LocalContactsService {
         details.push(`✓ ${trimmed} (email address)`);
       } else {
         // It's a name, search in contacts
-        const contact = contactsDb.findBestMatch(account.id, trimmed);
+        const contact = contactsDb.findBestMatchSync(account.id, trimmed);
 
         if (contact) {
           console.log(`[LocalContacts] ✓ Resolved "${trimmed}" to ${contact.name || 'Unknown'} (${contact.email})`);
@@ -67,7 +67,7 @@ class LocalContactsService {
       return [];
     }
 
-    const results = contactsDb.searchContactsByName(account.id, searchQuery);
+    const results = contactsDb.searchContactsByNameSync(account.id, searchQuery);
 
     // Map to format expected by existing code
     return results.map(contact => ({
@@ -86,7 +86,7 @@ class LocalContactsService {
       return null;
     }
 
-    const contact = contactsDb.findBestMatch(account.id, name);
+    const contact = contactsDb.findBestMatchSync(account.id, name);
 
     if (contact) {
       return {
@@ -107,7 +107,7 @@ class LocalContactsService {
       return [];
     }
 
-    const contacts = contactsDb.getContacts(account.id, limit);
+    const contacts = contactsDb.getContactsSync(account.id, limit);
 
     // Format for compatibility with existing code
     return contacts.map(contact => ({
@@ -128,7 +128,7 @@ class LocalContactsService {
       return 0;
     }
 
-    return contactsDb.getContactCount(account.id);
+    return contactsDb.getContactCountSync(account.id);
   }
 
   /**
