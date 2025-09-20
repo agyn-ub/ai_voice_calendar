@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleCalendarService } from '@/lib/services/googleCalendar';
-import { getCalendarConnection } from '@/lib/db';
+import { accountsDb } from '@/lib/db/accountsDb';
 import { StakingService } from '@/lib/services/stakingService';
 
 export async function GET(request: NextRequest) {
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
   }
   
   // Check if calendar is connected
-  const connection = getCalendarConnection(walletAddress);
-  if (!connection) {
+  const account = accountsDb.getAccountByWallet(walletAddress);
+  if (!account) {
     return NextResponse.json(
       { error: 'No calendar connected' },
       { status: 404 }
@@ -36,10 +36,10 @@ export async function GET(request: NextRequest) {
       maxResults ? parseInt(maxResults) : undefined
     );
     
-    return NextResponse.json({ 
+    return NextResponse.json({
       events,
       connected: true,
-      email: connection.google_email 
+      email: account.google_email
     });
   } catch (error) {
     console.error('Error fetching events:', error);
