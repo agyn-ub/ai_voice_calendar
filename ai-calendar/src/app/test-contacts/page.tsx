@@ -144,7 +144,7 @@ export default function TestContactsPage() {
         body: JSON.stringify({
           wallet_address: addr,
           action: 'sync',
-          maxPages: 20  // Will process up to 10,000 messages (500 per page * 20 pages)
+          maxPages: 10  // Will process up to 5,000 messages (500 per page * 10 pages) - safer for rate limits
         })
       });
 
@@ -264,7 +264,7 @@ export default function TestContactsPage() {
               disabled={!addr || syncStatus === 'syncing' || connectionStatus === 'not_connected'}
               className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {syncStatus === 'syncing' ? 'Syncing from Gmail...' : 'Sync Contacts from Gmail'}
+              {syncStatus === 'syncing' ? 'Syncing (this may take 1-2 minutes)...' : 'Sync Contacts from Gmail'}
             </button>
 
             {storedContacts.length > 0 && (

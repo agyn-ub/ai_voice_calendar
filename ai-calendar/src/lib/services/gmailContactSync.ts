@@ -35,21 +35,33 @@ export class GmailContactSyncService {
   /**
    * Extract ALL contacts from Gmail message headers with pagination
    * Only reads metadata (From, To, Cc, Bcc) without accessing message bodies
+   * Implements rate limiting to avoid Google API quota errors
    */
-  async extractContactsFromGmail(maxPages: number = 10): Promise<Array<{ email: string; name: string | null }>> {
+  async extractContactsFromGmail(maxPages: number = 10, options?: {
+    batchSize?: number;
+    batchDelay?: number;
+    pageDelay?: number;
+  }): Promise<Array<{ email: string; name: string | null }>> {
     const contactMap = new Map<string, { email: string; name: string | null }>();
     let pageToken: string | undefined = undefined;
     let pageCount = 0;
     let totalMessagesProcessed = 0;
-    const pageSize = 500; // Process 500 messages per page
+    let rateLimitErrors = 0;
+
+    // Configuration with safe defaults to avoid rate limits
+    const pageSize = 500; // Messages per page
+    const batchSize = options?.batchSize || 10; // Process 10 messages at a time (50 quota units)
+    const batchDelay = options?.batchDelay || 1000; // 1 second between batches
+    const pageDelay = options?.pageDelay || 2000; // 2 seconds between pages
 
     try {
       console.log('[Gmail] Starting contact extraction from Gmail...');
+      console.log(`[Gmail] Config: ${batchSize} messages per batch, ${batchDelay}ms between batches`);
 
       // Continue fetching pages until no more pages or max pages reached
       do {
         pageCount++;
-        console.log(`[Gmail] Fetching page ${pageCount}...`);
+        console.log(`[Gmail] Fetching page ${pageCount} of max ${maxPages}...`);
 
         // List messages with metadata scope only
         const response = await this.gmail.users.messages.list({
@@ -66,23 +78,50 @@ export class GmailContactSyncService {
         const messagesInPage = response.data.messages.length;
         console.log(`[Gmail] Processing ${messagesInPage} messages from page ${pageCount}...`);
 
-        // Process messages in smaller batches to avoid overwhelming the API
-        const batchSize = 50;
+        // Process messages in smaller batches to avoid rate limits
         for (let i = 0; i < messagesInPage; i += batchSize) {
           const batch = response.data.messages.slice(i, Math.min(i + batchSize, messagesInPage));
+          const batchNumber = Math.floor(i / batchSize) + 1;
+          const totalBatches = Math.ceil(messagesInPage / batchSize);
 
-          // Batch get message metadata
-          const messagePromises = batch.map(message =>
-            this.gmail.users.messages.get({
-              userId: 'me',
-              id: message.id!,
-              format: 'METADATA',
-              metadataHeaders: ['From', 'To', 'Cc', 'Bcc'],
-            }).catch(err => {
-              // Silently skip failed messages to avoid spam in logs
-              return null;
-            })
-          );
+          console.log(`[Gmail] Processing batch ${batchNumber}/${totalBatches} of page ${pageCount}...`);
+
+          // Batch get message metadata with retry on rate limit
+          const messagePromises = batch.map(async (message) => {
+            let retries = 0;
+            const maxRetries = 3;
+            let delay = 1000;
+
+            while (retries < maxRetries) {
+              try {
+                return await this.gmail.users.messages.get({
+                  userId: 'me',
+                  id: message.id!,
+                  format: 'METADATA',
+                  metadataHeaders: ['From', 'To', 'Cc', 'Bcc'],
+                });
+              } catch (err: any) {
+                // Check if it's a rate limit error
+                if (err?.code === 429 || err?.message?.includes('quota') || err?.message?.includes('limit')) {
+                  retries++;
+                  rateLimitErrors++;
+
+                  if (retries < maxRetries) {
+                    console.log(`[Gmail] Rate limit hit for message ${message.id}, retrying in ${delay}ms (attempt ${retries}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; // Exponential backoff
+                  } else {
+                    console.log(`[Gmail] Failed to fetch message ${message.id} after ${maxRetries} retries`);
+                    return null;
+                  }
+                } else {
+                  // Other error, skip message
+                  return null;
+                }
+              }
+            }
+            return null;
+          });
 
           const messages = await Promise.all(messagePromises);
 
@@ -123,9 +162,10 @@ export class GmailContactSyncService {
             }
           }
 
-          // Add small delay between batches to avoid rate limiting
+          // Add delay between batches to avoid rate limiting
           if (i + batchSize < messagesInPage) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log(`[Gmail] Waiting ${batchDelay}ms before next batch...`);
+            await new Promise(resolve => setTimeout(resolve, batchDelay));
           }
         }
 
@@ -137,7 +177,8 @@ export class GmailContactSyncService {
 
         // Add delay between pages to avoid rate limiting
         if (pageToken && pageCount < maxPages) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log(`[Gmail] Waiting ${pageDelay}ms before next page...`);
+          await new Promise(resolve => setTimeout(resolve, pageDelay));
         }
 
       } while (pageToken && pageCount < maxPages);
@@ -147,6 +188,9 @@ export class GmailContactSyncService {
 
       console.log(`[Gmail] Extraction complete! Processed ${pageCount} pages, ${totalMessagesProcessed} messages`);
       console.log(`[Gmail] Found ${contacts.length} unique contacts`);
+      if (rateLimitErrors > 0) {
+        console.log(`[Gmail] Encountered ${rateLimitErrors} rate limit errors (handled with retries)`);
+      }
 
       return contacts;
 
