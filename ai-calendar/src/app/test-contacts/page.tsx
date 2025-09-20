@@ -35,6 +35,10 @@ export default function TestContactsPage() {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'loading'>('idle');
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
   // Check connection and load contacts on mount
   useEffect(() => {
     if (addr) {
@@ -55,7 +59,39 @@ export default function TestContactsPage() {
       );
       setFilteredContacts(filtered);
     }
+    // Reset to first page when search changes
+    setCurrentPage(1);
   }, [searchQuery, storedContacts]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredContacts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedContacts = filteredContacts.slice(startIndex, endIndex);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 7;
+    const halfRange = Math.floor(maxPagesToShow / 2);
+
+    let startPage = Math.max(1, currentPage - halfRange);
+    let endPage = Math.min(totalPages, currentPage + halfRange);
+
+    // Adjust if we're near the beginning or end
+    if (currentPage <= halfRange) {
+      endPage = Math.min(totalPages, maxPagesToShow);
+    }
+    if (currentPage > totalPages - halfRange) {
+      startPage = Math.max(1, totalPages - maxPagesToShow + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return pages;
+  };
 
   const checkConnection = async () => {
     if (!addr) {
@@ -284,20 +320,42 @@ export default function TestContactsPage() {
         {/* Contacts Table */}
         {storedContacts.length > 0 && (
           <div className="bg-gray-800 rounded-lg p-6">
-            {/* Search Bar */}
+            {/* Search Bar and Controls */}
             <div className="mb-6">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search contacts by name or email..."
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
-              />
-              {searchQuery && (
-                <p className="text-sm text-gray-400 mt-2">
-                  Found {filteredContacts.length} of {storedContacts.length} contacts
+              <div className="flex gap-4 mb-4">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search contacts by name or email..."
+                  className="flex-1 px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
+                />
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+                >
+                  <option value={25}>25 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                  <option value={200}>200 per page</option>
+                </select>
+              </div>
+
+              <div className="flex justify-between items-center text-sm text-gray-400">
+                <p>
+                  {searchQuery && `Found ${filteredContacts.length} of ${storedContacts.length} contacts`}
+                  {!searchQuery && `Total: ${storedContacts.length} contacts`}
                 </p>
-              )}
+                {filteredContacts.length > 0 && (
+                  <p>
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredContacts.length)} of {filteredContacts.length}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Contacts Table */}
@@ -310,10 +368,10 @@ export default function TestContactsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredContacts.length > 0 ? (
-                    filteredContacts.map((contact, index) => (
+                  {paginatedContacts.length > 0 ? (
+                    paginatedContacts.map((contact, index) => (
                       <tr
-                        key={index}
+                        key={startIndex + index}
                         className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors"
                       >
                         <td className="py-3 px-4">
@@ -337,14 +395,73 @@ export default function TestContactsPage() {
                   )}
                 </tbody>
               </table>
-
-              {/* Pagination info */}
-              {filteredContacts.length > 50 && (
-                <p className="text-sm text-gray-500 mt-4 text-center">
-                  Showing first 50 contacts. Use search to find specific contacts.
-                </p>
-              )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                {/* Previous Button */}
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                {/* Page Numbers */}
+                {currentPage > 4 && totalPages > 7 && (
+                  <>
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors min-w-[40px]"
+                    >
+                      1
+                    </button>
+                    <span className="text-gray-500">...</span>
+                  </>
+                )}
+
+                {getPageNumbers().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-2 rounded-lg transition-colors min-w-[40px] ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                {currentPage < totalPages - 3 && totalPages > 7 && (
+                  <>
+                    <span className="text-gray-500">...</span>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors min-w-[40px]"
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
+
+                {/* Next Button */}
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
