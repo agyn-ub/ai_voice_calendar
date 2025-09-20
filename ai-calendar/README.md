@@ -10,7 +10,7 @@ AI Voice Calendar is a Next.js 15 application that revolutionizes calendar manag
 - 🎯 **Natural language processing** via OpenAI for intuitive calendar interactions
 - ⛓️ **Flow blockchain integration** for meeting staking and accountability
 - 📅 **Google Calendar sync** with full CRUD operations
-- 👥 **Smart contact resolution** via Google People API
+- 👥 **Smart contact resolution** via local contacts database
 - 💰 **FLOW token staking** on meetings with reward distribution
 
 Users authenticate via Flow wallet, connect their Google Calendar, interact through an AI-powered chat assistant, and can stake FLOW tokens on meetings to ensure accountability.
@@ -53,7 +53,7 @@ The `MeetingStaking` contract deployed on Flow enables:
 - **Authentication**: Flow wallet via @onflow/fcl
 - **Styling**: Tailwind CSS v4
 - **Calendar**: Google Calendar API
-- **Contacts**: Google People API
+- **Contacts**: Local SQLite database with Gmail sync
 - **AI**: OpenAI GPT-4o-mini with function calling
 - **Database**: Encrypted JSON storage
 
@@ -63,7 +63,7 @@ The `MeetingStaking` contract deployed on Flow enables:
 
 - Node.js 18+ and pnpm
 - Flow wallet (Blocto, Lilico, or Flow Wallet)
-- Google Cloud Console project with Calendar and People APIs enabled
+- Google Cloud Console project with Calendar API enabled
 - OpenAI API key
 
 ### Installation

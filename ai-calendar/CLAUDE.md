@@ -34,14 +34,14 @@ npx tsc --noEmit
 1. **Authentication**: Users connect Flow wallet via FCL → wallet address serves as primary identifier
 2. **Google OAuth**: Calendar connection initiated with wallet address → tokens encrypted and stored in JSON database
 3. **Natural Language Processing**: User messages → OpenAI with tool calling → calendar operations executed
-4. **Contact Resolution**: Names mentioned in messages → Google People API search → email addresses for invites
+4. **Contact Resolution**: Names mentioned in messages → Local SQLite database search → email addresses for invites
 5. **Blockchain Staking**: Meeting creation → optional FLOW token staking → attendance verification → reward distribution
 
 ### Service Layer Architecture
 The application uses singleton service instances to manage stateful operations:
 
 - **GoogleCalendarService**: Manages OAuth tokens, automatic refresh, and all calendar CRUD operations
-- **GoogleContactsService**: Handles contact search, resolution, and creation with confidence scoring
+- **LocalContactsService**: Handles contact search, resolution from SQLite database with confidence scoring
 - **OpenAIService**: Processes natural language, executes tool calls, manages timezone context
 - **CalendarAssistantService**: Maintains conversation sessions with 30-minute timeout
 - **FlowService**: Interfaces with Flow blockchain for wallet operations and meeting staking contracts
@@ -78,9 +78,9 @@ JSON file storage (`calendar-connections.json`) chosen over traditional database
 ### Contact Resolution Approach
 Multi-tier resolution strategy:
 1. Check if input is email address (regex validation)
-2. Search Google Contacts with warmup request for cache
+2. Search local SQLite contacts database
 3. Score matches by confidence (exact > high > medium > low)
-4. Return best match or null if ambiguous
+4. Show disambiguation prompt when multiple high-confidence matches exist
 
 ### Timezone Handling
 All datetime operations use explicit timezone:
