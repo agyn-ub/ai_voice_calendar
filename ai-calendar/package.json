@@ -12,7 +12,6 @@
     "@onflow/fcl": "^1.20.1",
     "@onflow/types": "^1.4.2",
     "@types/jsonwebtoken": "^9.0.10",
-    "better-sqlite3": "^12.2.0",
     "ethers": "^6.15.0",
     "googleapis": "^159.0.0",
     "jsonwebtoken": "^9.0.2",
@@ -20,12 +19,12 @@
     "openai": "^5.20.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "sql.js": "^1.13.0",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

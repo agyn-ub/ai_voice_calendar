@@ -1,6 +1,7 @@
-import Database from 'better-sqlite3';
+import initSqlJs, { Database, Statement } from 'sql.js';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 
 const DB_PATH = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'calendar.db');
 const ENCRYPTION_KEY = process.env.JWT_SECRET || 'default-dev-secret-change-in-production';
@@ -28,22 +29,13 @@ export function decrypt(text: string): string {
 }
 
 class SqliteDatabase {
-  private db: Database.Database;
+  private db: Database | null = null;
   private static instance: SqliteDatabase;
+  private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   private constructor() {
-    // Initialize database connection
-    this.db = new Database(DB_PATH);
-
-    // Enable foreign keys
-    this.db.pragma('foreign_keys = ON');
-
-    // Optimize for performance
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
-
-    // Initialize schema
-    this.initializeSchema();
+    // Constructor is now empty, initialization happens in initialize()
   }
 
   public static getInstance(): SqliteDatabase {
@@ -53,9 +45,59 @@ class SqliteDatabase {
     return SqliteDatabase.instance;
   }
 
+  // Initialize database asynchronously
+  public async initialize(): Promise<void> {
+    if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = this.initializeDatabase();
+    await this.initPromise;
+    this.initialized = true;
+  }
+
+  private async initializeDatabase(): Promise<void> {
+    try {
+      // Initialize sql.js
+      const SQL = await initSqlJs({
+        locateFile: file => {
+          // For Node.js environment, use the node_modules path
+          return path.join(process.cwd(), 'node_modules/sql.js/dist/', file);
+        }
+      });
+
+      // Check if database file exists
+      let data: Uint8Array | undefined;
+      if (fs.existsSync(DB_PATH)) {
+        data = new Uint8Array(fs.readFileSync(DB_PATH));
+      }
+
+      // Create or load database
+      this.db = new SQL.Database(data);
+
+      // Enable foreign keys
+      this.db.run('PRAGMA foreign_keys = ON');
+
+      // Initialize schema
+      this.initializeSchema();
+
+      // Set up auto-save on process exit
+      process.on('exit', () => this.saveToFile());
+      process.on('SIGINT', () => {
+        this.saveToFile();
+        process.exit();
+      });
+
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+      throw error;
+    }
+  }
+
   private initializeSchema() {
+    if (!this.db) throw new Error('Database not initialized');
+
     // Create accounts table
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         wallet_address TEXT UNIQUE NOT NULL,
@@ -71,7 +113,7 @@ class SqliteDatabase {
     `);
 
     // Create contacts table
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS contacts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id INTEGER NOT NULL,
@@ -84,7 +126,7 @@ class SqliteDatabase {
     `);
 
     // Create meeting_stakes table (for future use)
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS meeting_stakes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         meeting_id TEXT UNIQUE NOT NULL,
@@ -103,50 +145,189 @@ class SqliteDatabase {
 
     // Create indexes
     this.createIndexes();
+
+    // Save after schema creation
+    this.saveToFile();
   }
 
   private createIndexes() {
+    if (!this.db) throw new Error('Database not initialized');
+
     // Account indexes
-    this.db.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_wallet_address
       ON accounts(wallet_address);
     `);
 
     // Contact indexes for fast searching
-    this.db.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_account_contacts
       ON contacts(account_id, name COLLATE NOCASE);
     `);
 
-    this.db.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_account_email
       ON contacts(account_id, email);
     `);
 
     // Meeting stakes index
-    this.db.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_meeting_organizer
       ON meeting_stakes(organizer);
     `);
   }
 
-  public getDb(): Database.Database {
+  // Save database to file
+  public saveToFile(): void {
+    if (!this.db) return;
+    try {
+      const data = this.db.export();
+      fs.writeFileSync(DB_PATH, Buffer.from(data));
+    } catch (error) {
+      console.error('Failed to save database:', error);
+    }
+  }
+
+  // Ensure database is initialized before use
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+  }
+
+  public async getDb(): Promise<Database> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database initialization failed');
     return this.db;
   }
 
-  // Prepared statements for common operations
-  public prepare(sql: string) {
-    return this.db.prepare(sql);
+  // Prepared statement wrapper for sql.js
+  public async prepare(sql: string): Promise<{
+    run: (params: any) => { changes: number; lastInsertRowid: number };
+    get: (params: any) => any;
+    all: (params: any) => any[];
+  }> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+
+    const db = this.db;
+    const saveToFile = () => this.saveToFile();
+
+    return {
+      run: (params: any) => {
+        const stmt = db.prepare(sql);
+
+        // Convert object params to array if necessary
+        let paramArray: any[];
+        if (Array.isArray(params)) {
+          paramArray = params;
+        } else if (params && typeof params === 'object') {
+          // Extract values based on named parameters in SQL
+          const matches = sql.match(/@\w+/g) || [];
+          paramArray = matches.map(match => {
+            const key = match.substring(1); // Remove @ prefix
+            return params[key];
+          });
+        } else if (params !== undefined) {
+          paramArray = [params];
+        } else {
+          paramArray = [];
+        }
+
+        stmt.run(paramArray);
+        stmt.free();
+
+        // Save after write operations
+        saveToFile();
+
+        return {
+          changes: db.getRowsModified(),
+          lastInsertRowid: db.exec('SELECT last_insert_rowid()')[0]?.values[0]?.[0] || 0
+        };
+      },
+      get: (params: any) => {
+        const stmt = db.prepare(sql);
+
+        // Convert params similar to run()
+        let paramArray: any[];
+        if (Array.isArray(params)) {
+          paramArray = params;
+        } else if (params && typeof params === 'object') {
+          const matches = sql.match(/@\w+/g) || [];
+          paramArray = matches.map(match => {
+            const key = match.substring(1);
+            return params[key];
+          });
+        } else if (params !== undefined) {
+          paramArray = [params];
+        } else {
+          paramArray = [];
+        }
+
+        stmt.bind(paramArray);
+        if (stmt.step()) {
+          const result = stmt.getAsObject();
+          stmt.free();
+          return result;
+        }
+        stmt.free();
+        return undefined;
+      },
+      all: (params: any) => {
+        const stmt = db.prepare(sql);
+
+        // Convert params similar to run()
+        let paramArray: any[];
+        if (Array.isArray(params)) {
+          paramArray = params;
+        } else if (params && typeof params === 'object') {
+          const matches = sql.match(/@\w+/g) || [];
+          paramArray = matches.map(match => {
+            const key = match.substring(1);
+            return params[key];
+          });
+        } else if (params !== undefined) {
+          paramArray = [params];
+        } else {
+          paramArray = [];
+        }
+
+        stmt.bind(paramArray);
+        const results = [];
+        while (stmt.step()) {
+          results.push(stmt.getAsObject());
+        }
+        stmt.free();
+        return results;
+      }
+    };
   }
 
   // Transaction support
-  public transaction<T>(fn: () => T): T {
-    return this.db.transaction(fn)();
+  public async transaction<T>(fn: () => T): Promise<T> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      const result = fn();
+      this.db.run('COMMIT');
+      this.saveToFile();
+      return result;
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    }
   }
 
   // Close database connection (for cleanup)
   public close() {
-    this.db.close();
+    if (this.db) {
+      this.saveToFile();
+      this.db.close();
+      this.db = null;
+      this.initialized = false;
+    }
   }
 }
 
