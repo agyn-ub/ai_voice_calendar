@@ -55,7 +55,7 @@ export async function migrateFromJSON(jsonFilePath: string = './calendar-connect
       console.log(`[Migration] Migrating account for wallet: ${walletAddress}`);
 
       // Create or update account
-      const account = accountsDb.createOrUpdateAccount({
+      const account = accountsDb.createOrUpdateAccountSync({
         wallet_address: connection.wallet_address || walletAddress,
         google_email: connection.google_email,
         access_token: connection.access_token,
@@ -116,7 +116,7 @@ export async function runMigrationIfNeeded(): Promise<void> {
   // Check if JSON file exists and SQLite is empty
   if (existsSync(jsonPath)) {
     // Check if we have any accounts in SQLite
-    const testAccount = accountsDb.getAccountByWallet('test-check');
+    const testAccount = accountsDb.getAccountByWalletSync('test-check');
 
     // If SQLite seems empty (this test returns null as expected), run migration
     console.log('[Migration] JSON file found. Checking if migration is needed...');
@@ -129,7 +129,7 @@ export async function runMigrationIfNeeded(): Promise<void> {
       if (Object.keys(oldDb.connections || {}).length > 0) {
         // We have data in JSON, check if first wallet is in SQLite
         const firstWallet = Object.keys(oldDb.connections)[0];
-        const existingAccount = accountsDb.getAccountByWallet(firstWallet);
+        const existingAccount = accountsDb.getAccountByWalletSync(firstWallet);
 
         if (!existingAccount) {
           console.log('[Migration] Data found in JSON but not in SQLite. Running migration...');
