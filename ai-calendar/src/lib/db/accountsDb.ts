@@ -1,4 +1,5 @@
 import db, { encrypt, decrypt } from './sqlite';
+import { fallbackDb } from './fallbackDb';
 
 export interface Account {
   id?: number;
@@ -20,55 +21,14 @@ export interface TokenUpdate {
 }
 
 class AccountsDatabase {
-  private createStmt = db.prepare(`
-    INSERT INTO accounts (wallet_address, google_email, access_token, refresh_token, token_expiry, scopes)
-    VALUES (@wallet_address, @google_email, @access_token, @refresh_token, @token_expiry, @scopes)
-  `);
-
-  private updateStmt = db.prepare(`
-    UPDATE accounts
-    SET google_email = @google_email,
-        access_token = @access_token,
-        refresh_token = @refresh_token,
-        token_expiry = @token_expiry,
-        scopes = @scopes,
-        updated_at = unixepoch()
-    WHERE wallet_address = @wallet_address
-  `);
-
-  private getByWalletStmt = db.prepare(`
-    SELECT * FROM accounts WHERE wallet_address = ?
-  `);
-
-  private getByIdStmt = db.prepare(`
-    SELECT * FROM accounts WHERE id = ?
-  `);
-
-  private updateTokensStmt = db.prepare(`
-    UPDATE accounts
-    SET access_token = @access_token,
-        refresh_token = COALESCE(@refresh_token, refresh_token),
-        token_expiry = @token_expiry,
-        updated_at = unixepoch()
-    WHERE id = @id
-  `);
-
-  private updateSyncTimeStmt = db.prepare(`
-    UPDATE accounts
-    SET last_sync_at = unixepoch(),
-        updated_at = unixepoch()
-    WHERE id = ?
-  `);
-
-  private deleteStmt = db.prepare(`
-    DELETE FROM accounts WHERE wallet_address = ?
-  `);
-
   /**
-   * Create or update an account
+   * Create or update an account (async)
    */
-  public createOrUpdateAccount(account: Account): Account {
-    const existing = this.getByWalletStmt.get(account.wallet_address) as Account | undefined;
+  public async createOrUpdateAccountAsync(account: Account): Promise<Account> {
+    const stmt = await db.prepare(`
+      SELECT * FROM accounts WHERE wallet_address = ?
+    `);
+    const existing = stmt.get(account.wallet_address) as Account | undefined;
 
     // Encrypt tokens before saving
     const encryptedAccount = {
@@ -79,20 +39,37 @@ class AccountsDatabase {
 
     if (existing) {
       // Update existing account
-      this.updateStmt.run(encryptedAccount);
-      return this.getAccountByWallet(account.wallet_address)!;
+      const updateStmt = await db.prepare(`
+        UPDATE accounts
+        SET google_email = @google_email,
+            access_token = @access_token,
+            refresh_token = @refresh_token,
+            token_expiry = @token_expiry,
+            scopes = @scopes,
+            updated_at = unixepoch()
+        WHERE wallet_address = @wallet_address
+      `);
+      updateStmt.run(encryptedAccount);
+      return (await this.getAccountByWallet(account.wallet_address))!;
     } else {
       // Create new account
-      const result = this.createStmt.run(encryptedAccount);
-      return this.getAccountById(result.lastInsertRowid as number)!;
+      const createStmt = await db.prepare(`
+        INSERT INTO accounts (wallet_address, google_email, access_token, refresh_token, token_expiry, scopes)
+        VALUES (@wallet_address, @google_email, @access_token, @refresh_token, @token_expiry, @scopes)
+      `);
+      const result = createStmt.run(encryptedAccount);
+      return (await this.getAccountById(result.lastInsertRowid as number))!;
     }
   }
 
   /**
-   * Get account by wallet address
+   * Get account by wallet address (async)
    */
-  public getAccountByWallet(walletAddress: string): Account | null {
-    const account = this.getByWalletStmt.get(walletAddress) as Account | undefined;
+  public async getAccountByWallet(walletAddress: string): Promise<Account | null> {
+    const stmt = await db.prepare(`
+      SELECT * FROM accounts WHERE wallet_address = ?
+    `);
+    const account = stmt.get(walletAddress) as Account | undefined;
 
     if (!account) return null;
 
@@ -107,8 +84,11 @@ class AccountsDatabase {
   /**
    * Get account by ID
    */
-  public getAccountById(id: number): Account | null {
-    const account = this.getByIdStmt.get(id) as Account | undefined;
+  public async getAccountById(id: number): Promise<Account | null> {
+    const stmt = await db.prepare(`
+      SELECT * FROM accounts WHERE id = ?
+    `);
+    const account = stmt.get(id) as Account | undefined;
 
     if (!account) return null;
 
@@ -123,7 +103,7 @@ class AccountsDatabase {
   /**
    * Update account tokens
    */
-  public updateTokens(accountId: number, tokens: TokenUpdate): boolean {
+  public async updateTokens(accountId: number, tokens: TokenUpdate): Promise<boolean> {
     const encryptedTokens = {
       id: accountId,
       access_token: encrypt(tokens.access_token),
@@ -131,23 +111,40 @@ class AccountsDatabase {
       token_expiry: tokens.token_expiry,
     };
 
-    const result = this.updateTokensStmt.run(encryptedTokens);
+    const stmt = await db.prepare(`
+      UPDATE accounts
+      SET access_token = @access_token,
+          refresh_token = COALESCE(@refresh_token, refresh_token),
+          token_expiry = @token_expiry,
+          updated_at = unixepoch()
+      WHERE id = @id
+    `);
+    const result = stmt.run(encryptedTokens);
     return result.changes > 0;
   }
 
   /**
    * Update last sync timestamp
    */
-  public updateSyncTime(accountId: number): boolean {
-    const result = this.updateSyncTimeStmt.run(accountId);
+  public async updateSyncTime(accountId: number): Promise<boolean> {
+    const stmt = await db.prepare(`
+      UPDATE accounts
+      SET last_sync_at = unixepoch(),
+          updated_at = unixepoch()
+      WHERE id = ?
+    `);
+    const result = stmt.run(accountId);
     return result.changes > 0;
   }
 
   /**
-   * Delete account by wallet address
+   * Delete account by wallet address (async)
    */
-  public deleteAccount(walletAddress: string): boolean {
-    const result = this.deleteStmt.run(walletAddress);
+  public async deleteAccountAsync(walletAddress: string): Promise<boolean> {
+    const stmt = await db.prepare(`
+      DELETE FROM accounts WHERE wallet_address = ?
+    `);
+    const result = stmt.run(walletAddress);
     return result.changes > 0;
   }
 
@@ -155,7 +152,7 @@ class AccountsDatabase {
    * Get valid access token, refreshing if needed
    */
   public async getValidAccessToken(accountId: number): Promise<string | null> {
-    const account = this.getAccountById(accountId);
+    const account = await this.getAccountById(accountId);
     if (!account || !account.access_token || !account.refresh_token) {
       return null;
     }
@@ -171,6 +168,34 @@ class AccountsDatabase {
     // In production, this should call Google's OAuth2 refresh endpoint
     console.log('[Accounts] Token refresh needed for account', accountId);
     return account.access_token;
+  }
+
+  // Synchronous compatibility wrappers using JSON fallback
+  // These use the old JSON database for immediate access
+  // while sql.js is loading asynchronously
+  public getAccountByWalletSync(walletAddress: string): Account | null {
+    // Use JSON fallback for sync calls
+    return fallbackDb.getAccountByWallet(walletAddress);
+  }
+
+  public createOrUpdateAccountSync(account: Account): Account {
+    // Use JSON fallback for sync calls
+    const result = fallbackDb.createOrUpdateAccount(account);
+    // Also trigger async SQLite save in background
+    this.createOrUpdateAccountAsync(account).catch(err => {
+      console.error('Background SQLite save failed:', err);
+    });
+    return result;
+  }
+
+  public deleteAccountSync(walletAddress: string): boolean {
+    // Use JSON fallback for sync calls
+    const result = fallbackDb.deleteAccount(walletAddress);
+    // Also trigger async SQLite delete in background
+    this.deleteAccountAsync(walletAddress).catch(err => {
+      console.error('Background SQLite delete failed:', err);
+    });
+    return result;
   }
 }
 
