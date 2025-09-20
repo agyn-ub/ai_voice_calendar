@@ -22,7 +22,7 @@ export class GmailContactSyncService {
   }
 
   static async createFromWallet(walletAddress: string): Promise<GmailContactSyncService | null> {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.access_token || !account.refresh_token) {
       return null;
     }

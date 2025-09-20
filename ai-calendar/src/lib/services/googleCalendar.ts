@@ -13,7 +13,7 @@ export class GoogleCalendarService {
   }
   
   async refreshAccessToken(walletAddress: string): Promise<string | null> {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
 
     if (!account || !account.id || !account.refresh_token) {
       console.error('No refresh token found for wallet:', walletAddress);
@@ -33,7 +33,7 @@ export class GoogleCalendarService {
           Math.floor(credentials.expiry_date / 1000) :
           Math.floor(Date.now() / 1000) + 3600;
 
-        accountsDb.updateTokens(
+        await accountsDb.updateTokens(
           account.id,
           {
             access_token: credentials.access_token,
@@ -53,7 +53,7 @@ export class GoogleCalendarService {
   }
   
   async getValidToken(walletAddress: string): Promise<string | null> {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
 
     if (!account || !account.access_token) {
       return null;

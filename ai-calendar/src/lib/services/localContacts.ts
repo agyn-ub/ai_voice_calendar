@@ -14,7 +14,7 @@ class LocalContactsService {
     console.log(`[LocalContacts] Resolving ${attendees.length} attendees for wallet: ${walletAddress}`);
 
     // Get account ID
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.id) {
       console.warn('[LocalContacts] No account found for wallet address');
       return { resolved: [], details: ['✗ No calendar connection found'] };
@@ -61,7 +61,7 @@ class LocalContactsService {
    * Search contacts by name
    */
   async searchContactsByName(walletAddress: string, searchQuery: string) {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.id) {
       console.warn('[LocalContacts] No account found for wallet address');
       return [];
@@ -81,7 +81,7 @@ class LocalContactsService {
    * Get the best matching contact's email for a given name
    */
   async getContactEmail(walletAddress: string, name: string): Promise<{ email: string; displayName: string } | null> {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.id) {
       return null;
     }
@@ -102,7 +102,7 @@ class LocalContactsService {
    * Get all contacts for a wallet
    */
   async listContacts(walletAddress: string, limit: number = 100) {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.id) {
       return [];
     }
@@ -123,7 +123,7 @@ class LocalContactsService {
    * Get contact count
    */
   async getContactCount(walletAddress: string): number {
-    const account = accountsDb.getAccountByWallet(walletAddress);
+    const account = accountsDb.getAccountByWalletSync(walletAddress);
     if (!account || !account.id) {
       return 0;
     }
